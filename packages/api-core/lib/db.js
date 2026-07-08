@@ -238,30 +238,60 @@ const MIGRATIONS = [
 
 async function runMigrations() {
   const client = getClient();
+
+  // Agrupa migrations por tabela para evitar N round-trips
+  const tables = new Set();
+  const columnMigrations = [];
+  const postMigrations = [];
+
   for (const m of MIGRATIONS) {
-    // Migration "post-only" (sem table/column): executa um hook de dados
     if (m.post) {
-      try {
-        log.info(`migration post: ${m.id}`);
-        await m.post(client);
-      } catch (e) {
-        log.warn(`migration post skip ${m.id}: ${e.message}`);
-      }
-      continue;
+      postMigrations.push(m);
+    } else {
+      tables.add(m.table);
+      columnMigrations.push(m);
     }
+  }
+
+  // Lê PRAGMA table_info de cada tabela uma única vez
+  const existingColumns = new Map();
+  for (const table of tables) {
     try {
-      // Tenta adicionar a coluna. Se já existir, SQLite/libSQL retorna erro
-      // "duplicate column" e ignoramos.
-      log.info(`migration: ensure ${m.table}.${m.column}`);
-      await client.execute({ sql: `ALTER TABLE ${m.table} ADD COLUMN ${m.column} ${m.def}`, args: [] });
-      log.info(`migration: added ${m.table}.${m.column}`);
+      const info = await client.execute({ sql: `PRAGMA table_info(${table})`, args: [] });
+      existingColumns.set(table, new Set(info.rows.map(r => r.name)));
+    } catch (e) {
+      log.warn(`nao foi possivel ler table_info de ${table}: ${e.message}`);
+    }
+  }
+
+  // Executa ALTER TABLE das colunas faltantes em batch (write)
+  const pending = columnMigrations.filter(m => {
+    const cols = existingColumns.get(m.table);
+    return !cols || !cols.has(m.column);
+  });
+
+  if (pending.length > 0) {
+    log.info(`aplicando ${pending.length} migrations em batch`);
+    try {
+      await client.batch(pending.map(m => `ALTER TABLE ${m.table} ADD COLUMN ${m.column} ${m.def}`), 'write');
+      log.info('migrations de coluna aplicadas');
     } catch (e) {
       const msg = String(e.message || '');
       if (/duplicate column|already exists/i.test(msg)) {
-        log.info(`migration: ${m.table}.${m.column} already exists`);
+        log.info('migrations de coluna ja existem');
       } else {
-        log.warn(`migration skip ${m.id}: ${msg}`);
+        log.warn(`falha ao aplicar migrations em batch: ${msg}`);
       }
+    }
+  }
+
+  // Executa hooks post individualmente
+  for (const m of postMigrations) {
+    try {
+      log.info(`migration post: ${m.id}`);
+      await m.post(client);
+    } catch (e) {
+      log.warn(`migration post skip ${m.id}: ${e.message}`);
     }
   }
 }
