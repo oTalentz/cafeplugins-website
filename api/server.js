@@ -238,15 +238,16 @@ export async function createApp() {
 
   app.use((err, req, res, next) => {
     const log = createLogger('express');
+    const isProd = process.env.VERCEL || process.env.NODE_ENV === 'production';
     log.error('erro não tratado', {
       path: req.path,
       method: req.method,
-      error: err.message
-      // NÃO logar stack em produção
+      error: err.message,
+      stack: isProd ? undefined : err.stack,
+      code: err.code
     });
     if (!res.headersSent) {
-      const isProd = process.env.VERCEL || process.env.NODE_ENV === 'production';
-      res.status(500).json({ error: 'Erro interno', ...(isProd ? {} : { detail: err.message }) });
+      res.status(500).json({ error: 'Erro interno', ...(isProd ? {} : { detail: err.message, code: err.code }) });
     }
   });
 
