@@ -246,7 +246,7 @@ const DB = {
       try { const r = await api('/orders?onlyTrashed=1'); cache.trashedOrders = (r.orders || []).map(normalizeOrder); } catch {}
       try { const r = await api('/affiliates/admin/all'); cache.affiliates = (r.affiliates || []).map(normalizeAffiliate); } catch {}
       try { const r = await api('/affiliates/admin/payouts'); cache.payouts = r.payouts || []; } catch {}
-      try { const r = await api('/admin/users'); cache.users = r.users || []; } catch {}
+      try { const r = await api('/admin/users'); cache.users = (r.users || []).map(normalizeUser); } catch {}
     } else {
       // Buyer ou afiliado: carrega seus pedidos
       try { const r = await api('/orders/me'); cache.orders = (r.orders || []).map(normalizeOrder); } catch {}
@@ -731,8 +731,15 @@ const DB = {
   // ===========================================================
   async getAdminStats() { return api('/admin/stats'); },
   async getAllUsers() {
-    try { const r = await api('/admin/users'); cache.users = r.users; return r.users; }
+    try { const r = await api('/admin/users'); cache.users = (r.users || []).map(normalizeUser); return cache.users; }
     catch { return cache.users; }
+  },
+  getUsers() { return cache.users; },
+  getUser(id) { return cache.users.find(u => u.id === id) || null; },
+  async getUserDetails(id) {
+    const r = await api('/admin/users/' + id);
+    if (r.user) r.user = normalizeUser(r.user);
+    return r;
   },
   async deleteUser(id) { return api('/admin/users/' + id, { method: 'DELETE' }); },
   getBuyers() { return cache.users.filter(u => u.role === 'buyer'); },
@@ -741,7 +748,7 @@ const DB = {
   },
   exportAll() { return { products: cache.products, orders: cache.orders, users: cache.users, affiliates: cache.affiliates, payouts: cache.payouts, _stub: true }; },
   importAll() { return { ok: true, stub: true }; },
-  resetAll() { return { ok: true, stub: true }; },
+  async resetAll() { return api('/admin/cleanup', { method: 'POST' }); },
 
   // ===========================================================
   //  UTIL

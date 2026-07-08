@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { get, all, run } from 'api-core/lib/db.js';
-import { requireAuth, requireAdmin, hashPassword } from 'api-core/lib/auth.js';
+import { requireAuth, requireAdmin, hashPassword, sanitizeUser } from 'api-core/lib/auth.js';
 import { uid, nowISO, todayISO, isValidEmail, licenseKey, randomToken } from 'api-core/lib/util.js';
 import { sanitizeIdentifier, sanitizeText as st } from 'api-core/lib/sanitize.js';
 import { sendMail, orderPaidEmail } from 'api-core/lib/mailer.js';
@@ -44,14 +44,87 @@ router.get('/users', requireAdmin, async (req, res) => {
   res.json({ users });
 });
 
+// Admin: detalhes do usuário (conta + pedidos + dados afiliados)
+router.get('/users/:id', requireAdmin, async (req, res) => {
+  const id = String(req.params.id || '').slice(0, 64);
+  if (!id) return res.status(400).json({ error: 'ID inválido' });
+  const user = await get('SELECT * FROM users WHERE id = ?', [id]);
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+  const email = (user.email || '').toLowerCase();
+  const orders = await all(
+    `SELECT * FROM orders WHERE (buyer_email IS NOT NULL AND LOWER(buyer_email) = LOWER(?)) OR user_id = ? ORDER BY created_at DESC`,
+    [email, id]
+  );
+  const payouts = user.is_affiliate
+    ? await all('SELECT * FROM payouts WHERE affiliate_id = ? ORDER BY requested_at DESC', [id])
+    : [];
+  const clicks = user.is_affiliate && user.affiliate_code
+    ? await all('SELECT * FROM clicks WHERE affiliate_code = ? ORDER BY created_at DESC LIMIT 100', [user.affiliate_code])
+    : [];
+  const downloadsLog = await all(
+    `SELECT d.* FROM downloads_log d JOIN orders o ON d.order_id = o.id WHERE LOWER(o.buyer_email) = LOWER(?) OR o.user_id = ? ORDER BY d.created_at DESC LIMIT 100`,
+    [email, id]
+  );
+
+  res.json({
+    user: sanitizeUser(user),
+    orders: orders.map(serializeOrderForAdmin),
+    payouts,
+    clicks,
+    downloadsLog
+  });
+});
+
+function serializeOrderForAdmin(o) {
+  if (!o) return null;
+  let items = [], downloads = [];
+  try { items = JSON.parse(o.items || '[]'); } catch {}
+  try { downloads = JSON.parse(o.downloads || '[]'); } catch {}
+  const subtotal = Number(o.subtotal || 0);
+  const gatewayFee = Number(o.gateway_fee || 0);
+  const netAmount = Number(o.net_amount || 0);
+  const commission = Number(o.commission || 0);
+  const commissionRate = Number(o.commission_rate || 0);
+  const effectiveNet = netAmount > 0 ? netAmount : subtotal;
+  return {
+    ...o,
+    items,
+    downloads,
+    paymentMethod: o.payment_method || 'pix',
+    paymentId: o.payment_id || null,
+    affiliateCode: o.affiliate_code || null,
+    affiliateId: o.affiliate_id || null,
+    userId: o.user_id || null,
+    licenseKey: o.license_key || null,
+    downloadToken: o.download_token || null,
+    downloadExpiresAt: o.download_expires_at || null,
+    buyerCellphone: o.buyer_cellphone || null,
+    createdAt: o.created_at,
+    paidAt: o.paid_at,
+    deletedAt: o.deleted_at,
+    isPaid: o.status === 'pago',
+    isTrashed: !!o.deleted_at,
+    breakdown: {
+      subtotal,
+      gatewayFee,
+      netAmount: effectiveNet,
+      commission,
+      commissionRate,
+      storeKeeps: +Math.max(0, subtotal - gatewayFee - commission).toFixed(2)
+    }
+  };
+}
+
 // Admin: excluir usuário
 //   - Bloqueia self-delete
 //   - Bloqueia deletar o ÚLTIMO admin (lockout)
+//   - Remove todos os dados associados: pedidos, pagamentos, cliques, downloads e códigos de login
 router.delete('/users/:id', requireAdmin, async (req, res) => {
   const id = String(req.params.id || '').slice(0, 64);
   if (!id) return res.status(400).json({ error: 'ID inválido' });
   if (id === req.user.id) return res.status(400).json({ error: 'Você não pode deletar sua própria conta.' });
-  const target = await get('SELECT id, role, email FROM users WHERE id = ?', [id]);
+  const target = await get('SELECT id, role, email, affiliate_code FROM users WHERE id = ?', [id]);
   if (!target) return res.status(404).json({ error: 'Usuário não encontrado' });
   if (target.role === 'admin') {
     const otherAdmins = await all("SELECT id FROM users WHERE role = 'admin' AND id != ?", [id]);
@@ -59,30 +132,44 @@ router.delete('/users/:id', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Não é possível deletar o último admin do sistema.' });
     }
   }
-  // Cascade: deleta orders, payouts, clicks relacionados para manter integridade
-  const tx = async () => {
-    if (target.email) {
-      // orders do user (cobre guest checkouts com mesmo email)
-      await run('DELETE FROM orders WHERE LOWER(buyer_email) = LOWER(?)', [target.email]);
+
+  // Cascade: remove todos os dados associados para manter integridade
+  if (target.email || target.id) {
+    // orders do user (cobre buyer_email e user_id)
+    const userOrders = await all(
+      'SELECT id FROM orders WHERE (buyer_email IS NOT NULL AND LOWER(buyer_email) = LOWER(?)) OR user_id = ?',
+      [target.email || '', target.id]
+    );
+    const orderIds = userOrders.map(o => o.id);
+    if (orderIds.length) {
+      // logs de download referenciam pedidos
+      await run(`DELETE FROM downloads_log WHERE order_id IN (${orderIds.map(() => '?').join(',')})`, orderIds);
     }
-    if (target.id) {
-      // payouts do afiliado
-      await run('DELETE FROM payouts WHERE affiliate_id = ?', [target.id]);
-      // clicks do afiliado
-      await run('DELETE FROM clicks WHERE affiliate_code IN (SELECT affiliate_code FROM users WHERE id = ?)', [target.id]);
-    }
-    // finalmente deleta o user
-    await run('DELETE FROM users WHERE id = ?', [id]);
-  };
-  await tx();
+    await run(
+      'DELETE FROM orders WHERE (buyer_email IS NOT NULL AND LOWER(buyer_email) = LOWER(?)) OR user_id = ?',
+      [target.email || '', target.id]
+    );
+  }
+  if (target.id) {
+    // payouts do afiliado
+    await run('DELETE FROM payouts WHERE affiliate_id = ?', [target.id]);
+    // clicks do afiliado
+    await run('DELETE FROM clicks WHERE affiliate_code IN (SELECT affiliate_code FROM users WHERE id = ?)', [target.id]);
+    // códigos de login/verificação associados
+    await run('DELETE FROM login_codes WHERE target_email = (SELECT email FROM users WHERE id = ?)', [target.id]);
+  }
+  // finalmente deleta o user
+  await run('DELETE FROM users WHERE id = ?', [id]);
   res.json({ ok: true });
 });
 
 // Admin: limpeza controlada — remove TUDO exceto emails protegidos.
 // Útil para limpar dados de teste antes de lançar.
 router.post('/cleanup', requireAdmin, async (req, res) => {
-  const PROTECTED_EMAILS = (process.env.PROTECTED_EMAILS || 'admin@cafeplugins.com')
-    .split(',')
+  const PROTECTED_EMAILS = [
+    ...(process.env.PROTECTED_EMAILS || '').split(','),
+    process.env.ADMIN_EMAIL || 'admin@cafeplugins.com'
+  ]
     .map(e => e.trim().toLowerCase())
     .filter(Boolean);
 

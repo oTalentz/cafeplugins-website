@@ -1083,6 +1083,194 @@ function renderAffiliates() {
   });
 }
 
+// =============================================================
+//  USUÁRIOS
+// =============================================================
+function renderUsers() {
+  const users = (DB.getUsers ? DB.getUsers() : DB.getBuyers()) || [];
+  const totalUsers = users.length;
+  const totalBuyers = users.filter(u => u.role === 'buyer').length;
+  const totalAffiliates = users.filter(u => u.isAffiliate).length;
+  const totalAdmins = users.filter(u => u.role === 'admin').length;
+
+  $('#usersStatGrid').innerHTML = `
+    <div class="stat-card">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      <div class="body"><div class="lbl">Total de usuários</div><div class="num">${totalUsers}</div><div class="delta">cadastrados</div></div>
+    </div>
+    <div class="stat-card">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+      <div class="body"><div class="lbl">Compradores</div><div class="num">${totalBuyers}</div><div class="delta">contas</div></div>
+    </div>
+    <div class="stat-card">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg></div>
+      <div class="body"><div class="lbl">Afiliados</div><div class="num">${totalAffiliates}</div><div class="delta">cadastrados</div></div>
+    </div>
+    <div class="stat-card">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <div class="body"><div class="lbl">Administradores</div><div class="num">${totalAdmins}</div><div class="delta">ativos</div></div>
+    </div>
+  `;
+
+  if (users.length === 0) {
+    $('#usersTable').innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--ink-3); padding:40px">Nenhum usuário cadastrado ainda.</td></tr>`;
+    return;
+  }
+
+  $('#usersTable').innerHTML = users.map(u => {
+    const roleLabel = u.role === 'admin' ? 'admin' : u.role === 'buyer' ? 'comprador' : u.role;
+    const status = u.isAffiliate ? (u.affiliateStatus || 'active') : 'active';
+    return `
+    <tr>
+      <td>
+        <div class="row-product">
+          <div class="ic">${escHtml((u.name || '?').charAt(0).toUpperCase())}</div>
+          <div class="info">
+            <strong>${escHtml(u.name)}</strong>
+            <small>${escHtml(u.affiliateCode ? 'Código: ' + u.affiliateCode : 'Sem código de afiliado')}</small>
+          </div>
+        </div>
+      </td>
+      <td>${escHtml(u.email)}</td>
+      <td><span class="pill ${u.role === 'admin' ? 'warn' : 'ok'}">${escHtml(roleLabel)}</span></td>
+      <td><span class="pill ${status === 'active' ? 'ok' : status === 'paused' ? 'warn' : 'danger'}">${status === 'active' ? 'ativo' : status === 'paused' ? 'pausado' : 'banido'}</span></td>
+      <td style="color:var(--ink-3)">${fmtDay(u.createdAt)}</td>
+      <td style="text-align:right">
+        <div class="actions justify-end">
+          <button class="icon-btn" data-user-detail="${u.id}" title="Ver detalhes">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button class="icon-btn danger" data-user-del="${u.id}" title="Excluir usuário e dados">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  $$('[data-user-detail]').forEach(b => b.onclick = () => openUserDetail(b.dataset.userDetail));
+  $$('[data-user-del]').forEach(b => b.onclick = async () => {
+    const id = b.dataset.userDel;
+    const u = DB.getUser && DB.getUser(id);
+    if (!u) return;
+    const confirmed = await adminConfirm({
+      title: 'Excluir usuário',
+      message: `Tem certeza que deseja remover <strong>${escHtml(u.name)}</strong> (${escHtml(u.email)}) e todos os dados associados (pedidos, pagamentos, cliques, downloads, códigos de login)? Esta ação não pode ser desfeita.`,
+      okText: 'Excluir tudo',
+      danger: true
+    });
+    if (!confirmed) return;
+    try {
+      await DB.deleteUser(id);
+      await DB._refreshUserData();
+      renderAll();
+      toast('Usuário e dados associados removidos');
+    } catch (err) {
+      toast(err.message || 'Erro ao excluir usuário', false);
+    }
+  });
+}
+
+async function openUserDetail(id) {
+  const cached = DB.getUser && DB.getUser(id);
+  if (!cached) return;
+  $('#userDetailTitle').textContent = cached.name;
+  $('#userDetailBody').innerHTML = '<div style="padding:40px; text-align:center; color:var(--ink-3)"><div class="spinner"></div><br>Carregando detalhes…</div>';
+  $('#userDetailModal').classList.add('open');
+
+  let data;
+  try {
+    data = await DB.getUserDetails(id);
+  } catch (err) {
+    $('#userDetailBody').innerHTML = `<p style="color:var(--danger); padding:20px">${escHtml(err.message || 'Erro ao carregar detalhes')}</p>`;
+    return;
+  }
+
+  const u = data.user || cached;
+  const orders = data.orders || [];
+  const payouts = data.payouts || [];
+  const clicks = data.clicks || [];
+  const downloadsLog = data.downloadsLog || [];
+  const totalOrders = orders.length;
+  const paidOrders = orders.filter(o => o.isPaid || o.status === 'pago');
+  const totalSpent = paidOrders.reduce((s, o) => s + Number(o.total || 0), 0);
+  const pendingOrders = orders.filter(o => o.status === 'pendente');
+
+  $('#userDetailBody').innerHTML = `
+    <div class="sale-detail">
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px">
+        <div class="ic" style="width:48px; height:48px; border-radius:50%; background:var(--ink); color:var(--bg); display:grid; place-items:center; font-size:1.25rem; font-weight:600">${escHtml((u.name || '?').charAt(0).toUpperCase())}</div>
+        <div style="flex:1">
+          <strong style="font-size:1.0625rem">${escHtml(u.name)}</strong>
+          <div style="color:var(--ink-3); font-size:0.875rem">${escHtml(u.email)}</div>
+          <div style="margin-top:4px"><span class="pill ${u.role === 'admin' ? 'warn' : 'ok'}">${escHtml(u.role === 'admin' ? 'admin' : u.role === 'buyer' ? 'comprador' : u.role)}</span> ${u.isAffiliate ? `<span class="pill ${(u.affiliateStatus || 'active') === 'active' ? 'ok' : 'warn'}">afiliado</span>` : ''}</div>
+        </div>
+      </div>
+      <div class="kv"><div class="lbl">ID</div><div class="val"><code style="font-size:0.75rem">${escHtml(u.id)}</code></div></div>
+      <div class="kv"><div class="lbl">E-mail</div><div class="val">${escHtml(u.email)}</div></div>
+      <div class="kv"><div class="lbl">Cadastrado em</div><div class="val">${fmtDate(u.createdAt)}</div></div>
+      ${u.emailVerified ? `<div class="kv"><div class="lbl">E-mail verificado</div><div class="val">${fmtDate(u.emailVerifiedAt)}</div></div>` : ''}
+      ${u.isAffiliate ? `
+        <div class="kv"><div class="lbl">Código de afiliado</div><div class="val">${escHtml(u.affiliateCode)}</div></div>
+        <div class="kv"><div class="lbl">Taxa de comissão</div><div class="val">${u.affiliateRate || 25}%</div></div>
+        <div class="kv"><div class="lbl">Status de afiliado</div><div class="val">${escHtml(u.affiliateStatus || 'active')}</div></div>
+        <div class="kv"><div class="lbl">Cliques</div><div class="val">${Number(u.clicks || 0)}</div></div>
+        <div class="kv"><div class="lbl">Vendas</div><div class="val">${Number(u.conversions || 0)}</div></div>
+        <div class="kv"><div class="lbl">Total ganho</div><div class="val">${brl(u.totalEarned || 0)}</div></div>
+        <div class="kv"><div class="lbl">Pago</div><div class="val">${brl(u.paidOut || 0)}</div></div>
+      ` : ''}
+      ${u.banReason ? `<div class="kv"><div class="lbl">Motivo do ban</div><div class="val" style="color:var(--danger)">${escHtml(u.banReason)}</div></div>` : ''}
+
+      <div style="margin-top:18px">
+        <strong style="display:block; margin-bottom:8px; font-weight:600">Resumo de pedidos</strong>
+        <div class="kv"><div class="lbl">Total de pedidos</div><div class="val">${totalOrders}</div></div>
+        <div class="kv"><div class="lbl">Pedidos pagos</div><div class="val">${paidOrders.length}</div></div>
+        <div class="kv"><div class="lbl">Pendentes</div><div class="val">${pendingOrders.length}</div></div>
+        <div class="kv"><div class="lbl">Total gasto</div><div class="val"><strong>${brl(totalSpent)}</strong></div></div>
+      </div>
+
+      <div style="margin-top:18px">
+        <strong style="display:block; margin-bottom:8px; font-weight:600">Pedidos (${orders.length})</strong>
+        ${orders.length === 0 ? '<p style="color:var(--ink-3); font-size:0.875rem">Nenhum pedido encontrado.</p>' : `
+          <table style="width:100%; font-size:0.8125rem; border-collapse:collapse">
+            <thead><tr style="border-bottom:1px solid var(--line); text-align:left; color:var(--ink-3)"><th style="padding:6px 0">Data</th><th>ID</th><th>Produto</th><th>Total</th><th>Status</th></tr></thead>
+            <tbody>${orders.slice(0, 20).map(o => `<tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 0; color:var(--ink-3)">${fmtDay(o.createdAt)}</td><td><code>${escHtml(o.id)}</code></td><td>${escHtml(o.items && o.items[0]?.name || '—')}</td><td>${brl(o.total || 0)}</td><td><span class="pill ${o.status === 'pago' ? 'ok' : o.status === 'pendente' ? 'warn' : 'danger'}">${escHtml(o.status)}</span></td></tr>`).join('')}</tbody>
+          </table>`}
+      </div>
+
+      ${u.isAffiliate && payouts.length > 0 ? `
+        <div style="margin-top:18px">
+          <strong style="display:block; margin-bottom:8px; font-weight:600">Payouts (${payouts.length})</strong>
+          <table style="width:100%; font-size:0.8125rem; border-collapse:collapse">
+            <thead><tr style="border-bottom:1px solid var(--line); text-align:left; color:var(--ink-3)"><th style="padding:6px 0">Data</th><th>Valor</th><th>Status</th></tr></thead>
+            <tbody>${payouts.map(p => `<tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 0; color:var(--ink-3)">${fmtDay(p.requested_at || p.requestedAt)}</td><td>${brl(p.amount || 0)}</td><td><span class="pill ${p.status === 'pago' ? 'ok' : p.status === 'pendente' ? 'warn' : 'danger'}">${escHtml(p.status)}</span></td></tr>`).join('')}</tbody>
+          </table>
+        </div>
+      ` : ''}
+
+      ${u.isAffiliate && clicks.length > 0 ? `
+        <div style="margin-top:18px">
+          <strong style="display:block; margin-bottom:8px; font-weight:600">Últimos cliques (${clicks.length})</strong>
+          <table style="width:100%; font-size:0.8125rem; border-collapse:collapse">
+            <thead><tr style="border-bottom:1px solid var(--line); text-align:left; color:var(--ink-3)"><th style="padding:6px 0">Data</th><th>IP</th><th>User Agent</th></tr></thead>
+            <tbody>${clicks.map(c => `<tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 0; color:var(--ink-3)">${fmtDay(c.created_at || c.createdAt)}</td><td>${escHtml(c.ip || '—')}</td><td style="color:var(--ink-3); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${escHtml(c.user_agent || c.userAgent || '—')}</td></tr>`).join('')}</tbody>
+          </table>
+        </div>
+      ` : ''}
+
+      ${downloadsLog.length > 0 ? `
+        <div style="margin-top:18px">
+          <strong style="display:block; margin-bottom:8px; font-weight:600">Downloads (${downloadsLog.length})</strong>
+          <table style="width:100%; font-size:0.8125rem; border-collapse:collapse">
+            <thead><tr style="border-bottom:1px solid var(--line); text-align:left; color:var(--ink-3)"><th style="padding:6px 0">Data</th><th>Pedido</th><th>IP</th></tr></thead>
+            <tbody>${downloadsLog.map(d => `<tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 0; color:var(--ink-3)">${fmtDay(d.created_at || d.createdAt)}</td><td><code>${escHtml(d.order_id || d.orderId)}</code></td><td>${escHtml(d.ip || '—')}</td></tr>`).join('')}</tbody>
+          </table>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
 function openAffiliateDetail(id) {
   const a = DB.getAffiliates().find(x => x.id === id);
   if (!a) return;
@@ -1350,11 +1538,17 @@ $('#importInput').onchange = (e) => {
   reader.readAsText(file);
 };
 
-$('#resetBtn').onclick = () => {
-  if (!confirm('Resetar todos os dados para o padrão de demo? Isso apaga produtos, pedidos, afiliados, payouts e cliques.')) return;
-  if (!confirm('Tem certeza? Esta ação não pode ser desfeita.')) return;
-  DB.resetAll();
-  location.reload();
+$('#resetBtn').onclick = async () => {
+  if (!confirm('Limpar TODOS os dados de teste? Isso apaga usuários, pedidos, afiliados, payouts e cliques.')) return;
+  if (!confirm('Tem certeza? Esta ação não pode ser desfeita e mantém apenas o admin.')) return;
+  try {
+    const r = await DB.resetAll();
+    toast(`Limpo: ${r.removed.users} usuários, ${r.removed.orders} pedidos, ${r.removed.affiliates} afiliados`);
+    await DB._refreshUserData();
+    renderAll();
+  } catch (err) {
+    toast(err.message || 'Erro ao limpar dados', false);
+  }
 };
 
 function renderAll() {
@@ -1362,6 +1556,7 @@ function renderAll() {
   renderProducts();
   renderSales();   // já atualiza o badge da lixeira internamente
   renderAffiliates();
+  renderUsers();
   renderPayouts();
   $('#payoutBadge').textContent = DB.getPayouts().filter(p => p.status === 'pendente').length;
   $('#payoutBadge').style.display = $('#payoutBadge').textContent === '0' ? 'none' : '';
