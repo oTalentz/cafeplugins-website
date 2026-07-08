@@ -2,14 +2,7 @@
   "name": "cafe-plugins",
   "version": "1.0.0",
   "description": "Loja de plugins Minecraft com backend Turso + Brevo + AbacatePay + GitHub Releases. Frontend e backend deploy no Vercel.",
-  "main": "api/server.js",
   "type": "module",
-  "scripts": {
-    "start": "node api/server.js",
-    "dev": "node --watch api/server.js",
-    "seed": "node api/seed.js",
-    "test": "node --test api/tests/"
-  },
   "engines": {
     "node": ">=18"
   },
