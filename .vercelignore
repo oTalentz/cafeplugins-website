@@ -1,0 +1,17 @@
+api/node_modules_old/
+api/CREDENTIALS.txt
+api/.env
+api/.env.example
+api/lib/**
+api/routes/**
+api/tests/**
+.DS_Store
+Thumbs.db
+*.log
+.git/
+.github/
+node_modules/
+.vscode/
+.idea/
+*.md
+public/seed-products.json

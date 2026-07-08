@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minha conta · cafe plugins</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/loading.css?v=13" />
+  <link rel="stylesheet" href="css/style.css?v=12" />
+  <link rel="stylesheet" href="css/account.css" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230a0a0a'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M24 8c0 3-3 5-3 8s3 5 3 8'/%3E%3Cpath d='M34 8c0 3-3 5-3 8s3 5 3 8'/%3E%3Cpath d='M14 22h26v22a6 6 0 0 1-6 6H20a6 6 0 0 1-6-6V22z'/%3E%3Cpath d='M40 28h7a5 5 0 0 1 5 5v3a5 5 0 0 1-5 5h-7'/%3E%3C/g%3E%3C/svg%3E" />
+  <script>
+    (function() {
+      try {
+        var t = localStorage.getItem('pixelforge_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch(e) {}
+    })();
+  </script>
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="brand">
+        <div class="logo">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 2c0 1.2 1 1.8 1 3s-1 1.8-1 3"/>
+            <path d="M14 2c0 1.2 1 1.8 1 3s-1 1.8-1 3"/>
+            <path d="M5 9h11v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9z"/>
+            <path d="M16 12h2a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2h-2"/>
+          </svg>
+        </div>
+        <div class="brand-text"><span>cafe</span><span class="sub">plugins</span></div>
+      </a>
+      <div class="nav-actions">
+        <a href="index.html" class="btn btn-ghost" style="padding:7px 12px; font-size:0.875rem">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          Loja
+        </a>
+        <button class="icon-btn theme-toggle" id="themeToggle" aria-label="Trocar tema">
+          <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="account-page">
+
+    <!-- Splash de carregamento (evita flash de conteúdo errado antes do JS decidir) -->
+    <div id="loadingSplash" style="display:flex; align-items:center; justify-content:center; min-height:60vh; gap:12px; color:var(--ink-3); font-size:0.875rem">
+      <div class="spinner"></div>
+      Carregando sua conta…
+    </div>
+
+    <div id="loginView" class="login-wrap" style="display:none">
+      <div class="login-card">
+        <h1>Entrar na sua conta</h1>
+        <p>Acesse suas compras, downloads e o programa de afiliados.</p>
+
+        <form id="emailForm" class="login-form">
+          <div class="input-group">
+            <label>E-mail</label>
+            <input class="input" type="email" id="emailInput" placeholder="voce@email.com" required />
+          </div>
+          <div class="input-group">
+            <label>Senha</label>
+            <input class="input" type="password" id="passwordInput" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center">
+            Entrar
+          </button>
+          <div class="auth-links-row" style="margin-top:10px">
+            <button type="button" class="auth-link" id="showRegisterLink">Não tem conta? Cadastrar</button>
+          </div>
+        </form>
+
+        <form id="registerForm" class="login-form" style="display:none">
+          <p style="color:var(--ink-3); font-size:0.875rem; margin:0 0 12px">Crie sua conta em segundos. Você poderá ativar o programa de afiliados depois, na aba "Afiliado".</p>
+          <div class="input-group">
+            <label>Seu nome</label>
+            <input class="input" type="text" id="regName" required placeholder="Como devemos te chamar?" autocomplete="name" />
+          </div>
+          <div class="input-group">
+            <label>E-mail</label>
+            <input class="input" type="email" id="regEmail" required placeholder="voce@email.com" autocomplete="email" />
+          </div>
+          <div class="input-group">
+            <label>Senha</label>
+            <input class="input" type="password" id="regPassword" required placeholder="Mínimo 10 caracteres" autocomplete="new-password" minlength="10" />
+          </div>
+          <div class="input-group">
+            <label>Confirmar senha</label>
+            <input class="input" type="password" id="regPassword2" required placeholder="Repita a senha" autocomplete="new-password" minlength="10" />
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center">
+            Criar conta
+          </button>
+          <div class="auth-links-row" style="margin-top:10px">
+            <button type="button" class="auth-link" id="showLoginLink">Já tem conta? Entrar</button>
+          </div>
+        </form>
+
+        <form id="codeForm" class="login-form" style="display:none">
+          <div class="code-sent">
+            <div class="check">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div>
+              <strong>Código enviado para <span id="codeEmail"></span></strong>
+              <small>Verifique sua caixa de entrada. Válido por 10 minutos.</small>
+            </div>
+          </div>
+          <div class="input-group">
+            <label>Código de 6 dígitos</label>
+            <input class="input" type="text" id="codeInput" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" placeholder="000000" style="letter-spacing:0.5em; text-align:center; font-size:1.25rem" />
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center">Validar código</button>
+          <button type="button" id="resendBtn" class="btn btn-ghost" style="width:100%; justify-content:center; margin-top:8px">Reenviar código</button>
+          <details class="dev-note">
+            <summary>Mostrar código (demo)</summary>
+            <p>Como este é um sistema demo, o código aparece abaixo em vez de ser enviado por e-mail.</p>
+            <div class="dev-code" id="devCode">------</div>
+          </details>
+        </form>
+
+        <!-- Verificação de e-mail (novo cadastro) -->
+        <form id="verifyForm" class="login-form" style="display:none">
+          <p style="color:var(--ink-3); font-size:0.875rem; margin:0 0 12px">Confirme seu e-mail para começar a comprar.</p>
+          <div class="code-sent">
+            <div class="check">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div>
+              <strong>Enviamos um código para <span id="verifyEmail">—</span></strong>
+              <small>Válido por 10 minutos. Verifique também o spam.</small>
+            </div>
+          </div>
+          <div class="input-group">
+            <label>Código de 6 dígitos</label>
+            <input class="input" type="text" id="verifyCodeInput" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" placeholder="000000" style="letter-spacing:0.5em; text-align:center; font-size:1.25rem" autocomplete="one-time-code" required />
+            <div class="dev-code" id="verifyDevCode" style="margin-top:8px; display:none">------</div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center">Confirmar e-mail</button>
+          <button type="button" id="verifyResendBtn" class="btn btn-ghost" style="width:100%; justify-content:center; margin-top:8px">Reenviar código</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="dashboardView" style="display:none">
+      <header class="account-head">
+        <div>
+          <h1 id="helloUser">Olá</h1>
+          <p id="helloSub">Gerencie suas compras e indicações.</p>
+        </div>
+        <div class="account-head-actions">
+          <span class="pill ok" id="affPill" style="display:none">Afiliado</span>
+          <button id="logoutBtn" class="btn btn-secondary">Sair</button>
+        </div>
+      </header>
+
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-tab="compras">Minhas compras</button>
+        <button class="tab" data-tab="dados">Meus dados</button>
+        <button class="tab" data-tab="afiliado" id="tabAfiliado" style="display:none">Afiliado</button>
+      </nav>
+
+      <section class="tab-panel active" data-panel="compras">
+        <div id="ordersList">
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div class="skeleton" style="height:80px; border-radius:10px"></div>
+            <div class="skeleton" style="height:80px; border-radius:10px"></div>
+            <div class="skeleton" style="height:80px; border-radius:10px"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="dados">
+        <div class="panel">
+          <div class="panel-head"><h2>Meus dados</h2></div>
+          <div class="panel-body" id="dataPanel"></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="afiliado">
+        <div id="affiliatePanel"></div>
+      </section>
+    </div>
+  </main>
+
+  <div class="toast-stack" id="toastStack"></div>
+
+  <script src="js/loading.js?v=29"></script>
+  <script src="js/data.js?v=32"></script>
+  <script src="js/account.js?v=29"></script>
+</body>
+</html>

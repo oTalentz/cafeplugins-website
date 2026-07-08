@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Download · cafe plugins</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/loading.css?v=13" />
+  <link rel="stylesheet" href="css/style.css?v=12" />
+  <link rel="stylesheet" href="css/download.css" />
+  <script>
+    (function() {
+      try {
+        var t = localStorage.getItem('pixelforge_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch(e) {}
+    })();
+  </script>
+</head>
+<body>
+  <div class="dl-page">
+    <div class="dl-card" id="dlCard">
+      <a href="index.html" class="dl-brand">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 2c0 1.2 1 1.8 1 3s-1 1.8-1 3"/>
+          <path d="M14 2c0 1.2 1 1.8 1 3s-1 1.8-1 3"/>
+          <path d="M5 9h11v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9z"/>
+          <path d="M16 12h2a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2h-2"/>
+        </svg>
+        <span>cafe · <em>plugins</em></span>
+      </a>
+
+      <div class="dl-content" id="dlContent">
+        <div class="dl-spinner"><div></div></div>
+        <p style="color:var(--ink-3)">Verificando link…</p>
+      </div>
+
+      <div class="dl-foot">
+        <a href="account.html" class="dl-link">Ir para minha conta</a>
+        <a href="index.html" class="dl-link">Voltar para a loja</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/loading.js?v=29"></script>
+  <script src="js/data.js?v=32"></script>
+  <script src="js/download.js?v=25"></script>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Diagnóstico · cafe plugins</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/loading.css?v=13" />
+  <link rel="stylesheet" href="css/style.css?v=11" />
+  <style>
+    body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', sans-serif; padding: 24px; }
+    .diag-container { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    .subtitle { color: #888; margin-bottom: 32px; }
+    .card { background: #131313; border: 1px solid #262626; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .card h2 { font-size: 16px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 12px; }
+    .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1f1f1f; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+    .row:last-child { border-bottom: none; }
+    .key { color: #a3a3a3; }
+    .val { color: #e5e5e5; }
+    .ok { color: #22c55e; }
+    .err { color: #ef4444; }
+    .warn { color: #f59e0b; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+    .badge.ok { background: #14532d; color: #22c55e; }
+    .badge.err { background: #7f1d1d; color: #ef4444; }
+    .badge.warn { background: #78350f; color: #f59e0b; }
+    .summary { padding: 16px 20px; border-radius: 10px; font-weight: 600; }
+    .summary.ok { background: #052e16; border: 1px solid #14532d; color: #4ade80; }
+    .summary.err { background: #450a0a; border: 1px solid #7f1d1d; color: #fca5a5; }
+    pre { background: #0a0a0a; padding: 12px; border-radius: 8px; font-size: 12px; overflow-x: auto; color: #d4d4d4; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #333; border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .missing { color: #fca5a5; font-weight: 600; }
+    a { color: #60a5fa; }
+  </style>
+</head>
+<body>
+  <div class="diag-container">
+    <h1>🔧 Diagnóstico do Sistema</h1>
+    <p class="subtitle">Verifica env vars, conexão com DB, APIs externas e status do servidor</p>
+
+    <div id="summary"></div>
+
+    <div id="env-card" class="card">
+      <h2>Environment Variables</h2>
+      <div id="env-rows"></div>
+    </div>
+
+    <div id="db-card" class="card">
+      <h2>Banco de Dados (Turso)</h2>
+      <div id="db-rows"></div>
+    </div>
+
+    <div id="external-card" class="card">
+      <h2>APIs Externas</h2>
+      <div id="external-rows"></div>
+    </div>
+
+    <div class="card">
+      <h2>Raw JSON</h2>
+      <pre id="raw">Carregando…</pre>
+    </div>
+
+    <p style="color:#666; font-size:12px; margin-top:32px;">
+      <a href="/">← Voltar para a loja</a> · <a href="/api/diag" target="_blank">abrir JSON</a> · <a href="/api/health" target="_blank">/api/health</a>
+    </p>
+  </div>
+
+  <script>
+    (async function() {
+      const summary = document.getElementById('summary');
+      const envRows = document.getElementById('env-rows');
+      const dbRows = document.getElementById('db-rows');
+      const extRows = document.getElementById('external-rows');
+      const raw = document.getElementById('raw');
+
+      summary.innerHTML = '<div class="summary warn"><span class="spinner"></span>Carregando diagnóstico…</div>';
+
+      let data;
+      try {
+        const r = await fetch('/api/diag');
+        if (!r.ok) {
+          summary.innerHTML = `<div class="summary err">HTTP ${r.status} ao chamar /api/diag</div>`;
+          raw.textContent = await r.text();
+          return;
+        }
+        data = await r.json();
+      } catch (e) {
+        summary.innerHTML = `<div class="summary err">Falha de rede: ${e.message}</div>`;
+        raw.textContent = String(e);
+        return;
+      }
+
+      raw.textContent = JSON.stringify(data, null, 2);
+
+      // Summary
+      const ok = data.ok;
+      summary.innerHTML = ok
+        ? `<div class="summary ok">✓ Sistema operacional (${data.duration_ms}ms)</div>`
+        : `<div class="summary err">✗ Sistema com problemas (${data.duration_ms}ms)</div>`;
+
+      // ENV
+      const missing = data.env.missing_required || [];
+      let envHtml = '';
+      for (const [k, v] of Object.entries(data.env.required)) {
+        const cls = v.set ? 'ok' : 'err';
+        const label = v.set ? 'OK' : 'FALTANDO';
+        envHtml += `<div class="row"><span class="key">${k}</span><span class="val"><span class="badge ${cls}">${label}</span> ${v.preview || ''}</span></div>`;
+      }
+      if (missing.length) {
+        envHtml = `<div class="row" style="border-bottom: 2px solid #7f1d1d;"><span class="key missing">⚠ ${missing.length} env var(s) obrigatória(s) faltando</span><span class="val">${missing.join(', ')}</span></div>` + envHtml;
+      }
+      envRows.innerHTML = envHtml;
+
+      // DB
+      const db = data.db;
+      const checks = data.checks || {};
+      let dbHtml = '';
+      dbHtml += `<div class="row"><span class="key">Inicializado</span><span class="val">${db.initialized ? '<span class="ok">sim</span>' : '<span class="err">não</span>'}</span></div>`;
+      dbHtml += `<div class="row"><span class="key">URL configurada</span><span class="val">${db.url ? `<span class="ok">${db.url_value}</span>` : '<span class="err">não</span>'}</span></div>`;
+      dbHtml += `<div class="row"><span class="key">Token configurado</span><span class="val">${db.token ? '<span class="ok">sim</span>' : '<span class="err">não</span>'}</span></div>`;
+      dbHtml += `<div class="row"><span class="key">Produtos</span><span class="val">${checks.products?.ok ? checks.products.count : '<span class="err">' + (checks.products?.error || 'falhou') + '</span>'}</span></div>`;
+      dbHtml += `<div class="row"><span class="key">Usuários</span><span class="val">${checks.users?.ok ? checks.users.count : '<span class="err">' + (checks.users?.error || 'falhou') + '</span>'}</span></div>`;
+      dbHtml += `<div class="row"><span class="key">JWT</span><span class="val">${checks.jwt?.ok ? '<span class="ok">OK</span>' : '<span class="err">' + (checks.jwt?.error || 'falhou') + '</span>'}</span></div>`;
+      dbRows.innerHTML = dbHtml;
+
+      // Externas
+      let extHtml = '';
+      const brevo = checks.brevo;
+      extHtml += `<div class="row"><span class="key">Brevo</span><span class="val">${brevo?.ok ? `<span class="ok">OK</span> (${brevo.email || brevo.company || ''})` : `<span class="err">${brevo?.error || 'falhou'}</span>`}</span></div>`;
+      const aba = checks.abacate;
+      extHtml += `<div class="row"><span class="key">AbacatePay</span><span class="val">${aba?.ok ? '<span class="ok">OK</span>' : `<span class="warn">${aba?.error || 'desconhecido'}</span>`}</span></div>`;
+      extRows.innerHTML = extHtml;
+    })();
+  </script>
+  <script src="js/loading.js?v=22"></script>
+</body>
+</html>

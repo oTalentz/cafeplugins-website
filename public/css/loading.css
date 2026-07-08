@@ -1,0 +1,246 @@
+/* =============================================
+   cafe plugins — Loading global
+   Overlay + skeleton + spinners
+   ============================================= */
+
+/* ===== Loading bar no topo ===== */
+.global-loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 100000;
+  background: transparent;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.global-loader.visible { opacity: 1; }
+.global-loader::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, var(--accent, #f59e0b), transparent);
+  box-shadow: 0 0 12px var(--accent, #f59e0b);
+  animation: loader-slide 1.4s ease-in-out infinite;
+}
+.global-loader.indeterminate::after {
+  width: 25%;
+  left: -25%;
+}
+.global-loader.determinate::after {
+  width: var(--progress, 30%);
+  left: 0;
+  animation: none;
+  transition: width 0.3s;
+}
+@keyframes loader-slide {
+  0% { left: -30%; }
+  100% { left: 100%; }
+}
+
+/* ===== Overlay full-screen ===== */
+.global-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.global-overlay.visible {
+  display: flex;
+  opacity: 1;
+}
+.global-overlay-content {
+  background: var(--bg-1, #131313);
+  border: 1px solid var(--border, #262626);
+  border-radius: 14px;
+  padding: 28px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  min-width: 220px;
+  max-width: 90vw;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+.global-overlay-content .text {
+  font-size: 14px;
+  color: var(--ink-2, #d4d4d4);
+  text-align: center;
+  line-height: 1.4;
+}
+.global-overlay-content .subtext {
+  font-size: 12px;
+  color: var(--ink-3, #888);
+  text-align: center;
+  margin-top: -4px;
+}
+
+/* ===== Spinner ===== */
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border, #262626);
+  border-top-color: var(--accent, #f59e0b);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.spinner.lg { width: 36px; height: 36px; border-width: 3px; }
+.spinner.sm { width: 14px; height: 14px; border-width: 1.5px; }
+.spinner.white { border-color: rgba(255, 255, 255, 0.3); border-top-color: #fff; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== Botão com loading ===== */
+.btn-loading {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.75;
+}
+.btn-loading > * { visibility: hidden; }
+.btn-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+.btn-loading > .spinner { display: none; }
+
+/* ===== Skeleton placeholder ===== */
+.skeleton {
+  display: block;
+  width: 100%;
+  height: 1em;
+  background: linear-gradient(90deg, var(--bg-1, #131313) 0%, var(--bg-2, #1a1a1a) 50%, var(--bg-1, #131313) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shine 1.6s ease-in-out infinite;
+  border-radius: 6px;
+  color: transparent !important;
+}
+@keyframes skeleton-shine {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton.text { height: 14px; margin: 4px 0; }
+.skeleton.text-sm { height: 10px; }
+.skeleton.text-lg { height: 18px; }
+.skeleton.title { height: 22px; width: 60%; }
+.skeleton.block { height: 80px; }
+.skeleton.avatar { width: 40px; height: 40px; border-radius: 50%; }
+.skeleton.button { height: 36px; width: 100px; }
+
+/* ===== Skeleton card grid ===== */
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 8px 0;
+}
+.skeleton-card {
+  background: var(--bg-1, #131313);
+  border: 1px solid var(--border, #262626);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.skeleton-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+.skeleton-card-top .skeleton.avatar { flex-shrink: 0; }
+.skeleton-card-top .skeleton.title { flex: 1; height: 16px; width: auto; }
+
+/* ===== Loading lateral (compacto) ===== */
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+}
+.skeleton-list .skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--bg-1, #131313);
+  border: 1px solid var(--border, #262626);
+  border-radius: 12px;
+}
+.skeleton-list .skeleton-row .skeleton.avatar { flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px; }
+.skeleton-list .skeleton-row-content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.skeleton-list .skeleton-row-content .skeleton.text { width: 100%; }
+
+/* ===== Botão de loading inline (em cards) ===== */
+.inline-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-3, #888);
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+/* ===== Section loading (substitui conteúdo) ===== */
+.section-loading {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--ink-3, #888);
+  font-size: 13px;
+}
+.section-loading .spinner.lg { border-color: var(--border, #262626); border-top-color: var(--accent, #f59e0b); }
+
+/* ===== Tab loading skeleton (admin/account) ===== */
+.tab-loading-skeleton {
+  padding: 24px 0;
+}
+.tab-loading-skeleton .skeleton-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+.tab-loading-skeleton .skeleton-row .skeleton { flex: 1; }
+
+/* ===== Foco no conteúdo principal quando loading ===== */
+body.loading main,
+body.loading .admin-shell,
+body.loading .page-section.active {
+  position: relative;
+  pointer-events: none;
+}
+body.loading main::after,
+body.loading .page-section.active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.05);
+  pointer-events: none;
+}
