@@ -130,7 +130,13 @@
       // Externas
       let extHtml = '';
       const brevo = checks.brevo;
-      extHtml += `<div class="row"><span class="key">Brevo</span><span class="val">${brevo?.ok ? `<span class="ok">OK</span> (${brevo.email || brevo.company || ''})` : `<span class="err">${brevo?.error || 'falhou'}</span>`}</span></div>`;
+      let brevoText = brevo?.ok ? '<span class="ok">OK</span>' : `<span class="err">${brevo?.error || 'falhou'}</span>`;
+      if (brevo?.ok && brevo.sender) {
+        brevoText += ` (${brevo.sender.email} / ${brevo.sender.name || ''})`;
+      } else if (brevo?.account) {
+        brevoText += ` — conta ${brevo.account.email || ''}`;
+      }
+      extHtml += `<div class="row"><span class="key">Brevo</span><span class="val">${brevoText}</span></div>`;
       const aba = checks.abacate;
       extHtml += `<div class="row"><span class="key">AbacatePay</span><span class="val">${aba?.ok ? '<span class="ok">OK</span>' : `<span class="warn">${aba?.error || 'desconhecido'}</span>`}</span></div>`;
       extRows.innerHTML = extHtml;

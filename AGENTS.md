@@ -42,7 +42,7 @@ npm install
 node api/server.js
 
 # Testes
-node --test packages/api-core/tests/
+node --test packages/api-core/tests/**/*.test.js
 ```
 
 ## Variáveis de ambiente obrigatórias
@@ -51,4 +51,4 @@ node --test packages/api-core/tests/
 - `TURSO_TOKEN`
 - `JWT_SECRET` (>= 32 chars, diferente de `change-me-in-production`)
 
-Outras variáveis (BREVO, ABACATE, etc.) são opcionais e caem em modo stub.
+Outras variáveis (BREVO, Mercado Pago, ABACATE, etc.) são opcionais e caem em modo stub.

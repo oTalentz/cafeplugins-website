@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS orders (
   payment_id TEXT,
   pix_qr_code TEXT,
   pix_qr_image TEXT,
+  pix_expires_at TEXT,
   items TEXT NOT NULL,
   license_key TEXT,
   download_token TEXT,
@@ -244,6 +245,8 @@ const MIGRATIONS = [
   // Telefone do comprador para antifraude (AbacatePay cartão)
   { id: 'buyer_cellphone_orders', table: 'orders', column: 'buyer_cellphone', def: 'TEXT' },
   { id: 'buyer_tax_id_orders', table: 'orders', column: 'buyer_tax_id', def: 'TEXT' },
+  // Expiração do PIX transparente (Mercado Pago / AbacatePay)
+  { id: 'pix_expires_at_orders', table: 'orders', column: 'pix_expires_at', def: 'TEXT' },
   // Backfill: admins existentes são auto-confirmados (criados via bootstrap pelo owner)
   { id: 'backfill_admin_verified', table: 'users', column: 'noop', def: 'noop', post: async (db) => {
     // Marca todos os admins existentes como verificados (idempotente)

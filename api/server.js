@@ -18,6 +18,7 @@ import { createLogger, checkEnv } from 'api-core/lib/logger.js';
 import { securityHeaders } from 'api-core/lib/security.js';
 import { performanceMiddleware, healthCheck, getMetrics } from 'api-core/lib/monitoring.js';
 import { abacateEnabled, createAbacateProduct } from 'api-core/lib/payments.js';
+import { mailerEnabled } from 'api-core/lib/mailer.js';
 import { CORS_ORIGINS } from 'api-core/lib/config.js';
 
 const log = createLogger('server');
@@ -60,7 +61,7 @@ export async function bootstrap() {
   }
 
   // Logar status de integrações opcionais
-  const hasBrevo = !!process.env.BREVO_API_KEY;
+  const hasBrevo = mailerEnabled();
   const hasAbacate = !!process.env.ABACATE_API_KEY;
   log.info('status de integrações', { brevo: hasBrevo ? 'configurado' : 'stub mode', abacate: hasAbacate ? 'configurado' : 'manual mode' });
 
@@ -188,7 +189,7 @@ export async function createApp() {
 
   // Raw body para webhooks (precisamos do JSON bruto para validar HMAC)
   app.use((req, res, next) => {
-    if (req.path === '/api/orders/webhook') {
+    if (req.path.startsWith('/api/orders/webhook')) {
       let data = '';
       req.setEncoding('utf8');
       req.on('data', chunk => { data += chunk; });

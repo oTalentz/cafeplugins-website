@@ -358,7 +358,8 @@ router.post('/orders', requireAdmin, async (req, res) => {
       }
     }
     try {
-      const tpl = orderPaidEmail({ id, buyer_name: name, items: resolved }, { name }, resolved);
+      const order = { id, download_token: downloadToken, license_key: license };
+      const tpl = orderPaidEmail({ order, buyer: { name }, products: resolved });
       await sendMail({ to: email, ...tpl });
     } catch (e) { console.error('mailer err:', e.message); }
   }

@@ -1,7 +1,15 @@
 import { Router } from 'express';
 import { get, all, run } from 'api-core/lib/db.js';
 import { requireAuth, requireAdmin, optionalAuth, getCurrentUser, extractToken } from 'api-core/lib/auth.js';
-import { createPixCharge, createCardCheckout, checkPaymentStatus, verifyWebhookSignature } from 'api-core/lib/payments.js';
+import {
+  paymentGateway,
+  createPixCharge,
+  createCardCheckout,
+  checkPaymentStatus,
+  verifyWebhookSignature,
+  verifyMercadoPagoWebhook
+} from 'api-core/lib/gateway.js';
+import { sendCode } from 'api-core/lib/codes.js';
 import { sendMail, orderPaidEmail } from 'api-core/lib/mailer.js';
 import { uid, licenseKey, randomToken, nowISO, todayISO, isValidEmail, generateAffCode } from 'api-core/lib/util.js';
 import { sanitizeDownloadToken, sanitizeIdentifier, sanitizeText, sanitizeUrl, LIMITS } from 'api-core/lib/sanitize.js';
@@ -20,7 +28,6 @@ const statusLimiter = rateLimit({ scope: 'orders:status', windowMs: 60_000, max:
 
 const ALLOWED_STATUS = new Set(['pendente', 'pago', 'cancelado', 'reembolsado']);
 const ALLOWED_PAYMENT_METHODS = new Set(['pix', 'cartao']);
-const PAID_GATEWAY_STATUSES = new Set(['PAID', 'paid', 'CONFIRMED', 'confirmed', 'COMPLETED', 'completed']);
 
 // Lista pedidos do usuário logado
 router.get('/me', requireAuth, async (req, res) => {
@@ -45,7 +52,7 @@ router.post('/checkout', checkoutLimiter, optionalAuth, async (req, res) => {
   }
   if (!isValidEmail(email)) return res.status(400).json({ error: 'E-mail inválido' });
   if (items.length > 50) return res.status(400).json({ error: 'Carrinho muito grande' });
-  // Só PIX é suportado. Cartão/Boleto = "em breve".
+  // PIX e cartão são suportados via gateway ativo (Mercado Pago/AbacatePay).
   if (paymentMethod && !ALLOWED_PAYMENT_METHODS.has(paymentMethod)) {
     return res.status(400).json({ error: 'Método de pagamento indisponível' });
   }
@@ -132,19 +139,9 @@ router.post('/checkout', checkoutLimiter, optionalAuth, async (req, res) => {
         [id, e, cleanName, 'NO_PASSWORD', 'buyer', nowISO()]
       );
       buyer = await get('SELECT * FROM users WHERE id = ?', [id]);
-      // Envia code de verificação imediatamente
+      // Envia code de verificação imediatamente (respeita cooldown)
       try {
-        const { loginCode6 } = await import('api-core/lib/util.js');
-        const { sendMail, verifyEmail: verifyEmailTpl } = await import('api-core/lib/mailer.js');
-        const code = loginCode6();
-        const codeId = uid('lc-');
-        const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-        await run(
-          'INSERT INTO login_codes (id, target_type, target_email, code, purpose, expires_at, used, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
-          [codeId, 'user', e, code, 'verify', expires, nowISO()]
-        );
-        const tpl = verifyEmailTpl({ code, email: e });
-        await sendMail({ to: e, ...tpl });
+        await sendCode(e, 'verify');
       } catch (err) {
         log.error('verify code mailer error', { error: err.message });
       }
@@ -178,22 +175,23 @@ router.post('/checkout', checkoutLimiter, optionalAuth, async (req, res) => {
     ]
   );
 
-  // Cria cobrança PIX apenas se for PIX
-  let pix = { stub: !process.env.ABACATE_API_KEY };
+  // Cria cobrança conforme gateway ativo
+  let pix = { stub: paymentGateway() === 'manual' };
   let checkoutUrl = null;
   let cardError = null;
+  const redirectUrl = `${process.env.APP_URL || 'https://cafeplugins.com'}/api/orders/${orderId}/return`;
 
   if (paymentMethod === 'pix') {
     try {
       pix = await createPixCharge({
         orderId,
         amount: subtotal,
-        description: `Pedido #${orderId}`.slice(0, 37),
-        customer: { name: cleanName, email: e }
+        description: `Pedido #${orderId}`.slice(0, 256),
+        customer: { name: cleanName, email: e, items: orderItems }
       });
       await run(
-        'UPDATE orders SET payment_id = ?, pix_qr_code = ?, pix_qr_image = ? WHERE id = ?',
-        [pix.paymentId || null, pix.pixQrCode || null, pix.pixQrImage || null, orderId]
+        'UPDATE orders SET payment_id = ?, pix_qr_code = ?, pix_qr_image = ?, pix_expires_at = ? WHERE id = ?',
+        [pix.paymentId || null, pix.pixQrCode || null, pix.pixQrImage || null, pix.expiresAt || null, orderId]
       );
     } catch (err) {
       log.error('Pix charge error', { error: err.message });
@@ -208,32 +206,36 @@ router.post('/checkout', checkoutLimiter, optionalAuth, async (req, res) => {
       }
     }
   } else if (paymentMethod === 'cartao') {
-    // Cartão: cria checkout hospedado via AbacatePay v2
-    // Requer que todos os produtos tenham abacate_product_id (sync via admin)
-    const abacateItems = orderItems
-      .filter(i => i.abacateProductId)
-      .map(i => ({ id: i.abacateProductId, quantity: 1 }));
+    const gateway = paymentGateway();
+    let abacateItems = null;
 
-    if (abacateItems.length !== orderItems.length) {
-      // Bloqueia: sem sync com Abacate, não tem como cobrar cartão. Rollback do pedido.
-      const missing = orderItems.filter(i => !i.abacateProductId).map(i => i.name);
-      log.warn('Card checkout: missing abacate_product_id', { missing: missing.join(', ') });
-      await run('DELETE FROM orders WHERE id = ?', [orderId]);
-      return res.status(409).json({
-        error: `Cartão indisponível: "${missing.join(', ')}" ainda não está sincronizado com a AbacatePay. Use PIX ou peça ao admin para sincronizar.`,
-        code: 'CARD_PRODUCT_NOT_SYNCED',
-        unsyncedIds: orderItems.filter(i => !i.abacateProductId).map(i => i.id)
-      });
+    // Cartão via AbacatePay exige que todos os produtos estejam sincronizados
+    if (gateway === 'abacate') {
+      abacateItems = orderItems
+        .filter(i => i.abacateProductId)
+        .map(i => ({ id: i.abacateProductId, quantity: 1 }));
+
+      if (abacateItems.length !== orderItems.length) {
+        const missing = orderItems.filter(i => !i.abacateProductId).map(i => i.name);
+        log.warn('Card checkout: missing abacate_product_id', { missing: missing.join(', ') });
+        await run('DELETE FROM orders WHERE id = ?', [orderId]);
+        return res.status(409).json({
+          error: `Cartão indisponível: "${missing.join(', ')}" ainda não está sincronizado com a AbacatePay. Use PIX ou peça ao admin para sincronizar.`,
+          code: 'CARD_PRODUCT_NOT_SYNCED',
+          unsyncedIds: orderItems.filter(i => !i.abacateProductId).map(i => i.id)
+        });
+      }
     }
 
     try {
       const cardResult = await createCardCheckout({
         orderId,
         amount: subtotal,
-        description: `Pedido #${orderId}`.slice(0, 37),
+        description: `Pedido #${orderId}`.slice(0, 256),
         customer: { name: cleanName, email: e, cellphone: cleanPhone },
-        redirectUrl: `${process.env.APP_URL || 'https://cafeplugins.com'}/api/orders/${orderId}/return`,
-        abacateItems
+        redirectUrl,
+        ...(abacateItems ? { abacateItems } : {}),
+        items: orderItems
       });
       if (cardResult && cardResult.checkoutUrl) {
         checkoutUrl = cardResult.checkoutUrl;
@@ -274,13 +276,11 @@ router.post('/checkout', checkoutLimiter, optionalAuth, async (req, res) => {
   res.json({ order: serialize(order), pix, checkoutUrl, cardError });
 });
 
-// Webhook do gateway de pagamento (AbacatePay v1 e v2)
-// Validação CRÍTICA: HMAC-SHA256 do rawBody com header 'x-abacate-signature' (AbacatePay)
-// ou 'x-webhook-signature' (genérico). Fallback: 'X-Webhook-Secret' APENAS para dev/migração.
-// NUNCA aceita secret via query string (vaza em logs).
+// Webhook da AbacatePay (v1 e v2)
+// Validação CRÍTICA: HMAC-SHA256 do rawBody com header 'x-abacate-signature'.
+// Fallback: 'X-Webhook-Secret' APENAS para dev/migração. NUNCA via query string.
 router.post('/webhook', webhookLimiter, async (req, res) => {
   const expectedSecret = process.env.ABACATE_WEBHOOK_SECRET;
-  // AbacatePay usa 'x-abacate-signature'; fallback para 'x-webhook-signature' e 'x-webhook-secret'
   const signature = req.headers['x-abacate-signature'] || req.headers['x-webhook-signature'];
   const headerSecret = req.headers['x-webhook-secret'];
   const rawBody = req.rawBody || JSON.stringify(req.body || {});
@@ -291,14 +291,12 @@ router.post('/webhook', webhookLimiter, async (req, res) => {
       return res.status(503).json({ error: 'Webhook não configurado' });
     }
   } else {
-    // Tenta HMAC primeiro (produção)
     if (signature) {
       if (!verifyWebhookSignature(rawBody, signature, expectedSecret)) {
         log.warn('HMAC inválido', { ip: req.ip });
         return res.status(401).json({ error: 'Assinatura inválida' });
       }
     } else if (headerSecret) {
-      // Fallback para header secret (dev/migração)
       log.warn('usando X-Webhook-Secret fallback (HMAC não enviado). Migre para x-abacate-signature.');
       if (!timingSafeEqual(headerSecret, expectedSecret)) {
         log.warn('secret inválido', { ip: req.ip });
@@ -312,9 +310,7 @@ router.post('/webhook', webhookLimiter, async (req, res) => {
 
   const body = req.body || {};
   const { event, data } = body;
-
-  // Log do payload completo para debug de webhooks
-  log.info('webhook recebido', { event, dataKeys: data ? Object.keys(data) : null });
+  log.info('webhook abacate recebido', { event, dataKeys: data ? Object.keys(data) : null });
 
   if (!event || typeof event !== 'string' || event.length > 64) {
     return res.status(400).json({ error: 'event inválido' });
@@ -332,35 +328,93 @@ router.post('/webhook', webhookLimiter, async (req, res) => {
     return res.status(200).json({ ok: true, ignored: true, event });
   }
 
-  // AbacatePay billing.paid envia data.payment.id e data.billing.id (aninhado)
-  // /v2/checkouts retorna data.id (checkout) com metadata.orderId
-  // /v2/transparents retorna data.id (transparent) com metadata.orderId
-  // Compatível com: data.id, data.paymentId, data.payment.id, data.billing.id, data.checkoutId
   const paymentId = data?.id || data?.paymentId || data?.payment?.id || data?.billing?.id || data?.checkoutId;
   const metadataOrderId = data?.metadata?.orderId || data?.payment?.metadata?.orderId || data?.checkout?.metadata?.orderId;
 
   let order = null;
-
-  // Busca por paymentId (caminho principal)
   if (paymentId && typeof paymentId === 'string' && paymentId.length <= 128) {
     order = await get('SELECT * FROM orders WHERE payment_id = ?', [paymentId]);
   }
-
-  // Fallback: busca por metadata.orderId (salvo no createPixCharge)
   if (!order && metadataOrderId && typeof metadataOrderId === 'string' && metadataOrderId.length <= 64) {
     order = await get('SELECT * FROM orders WHERE id = ?', [metadataOrderId]);
-    log.info('encontrado via metadata.orderId', { metadataOrderId });
   }
 
   if (!order) {
     log.warn('pedido não encontrado', { paymentId, metadataOrderId });
-    // Log parcial do payload para debug (sem dados sensíveis)
-    log.warn('payload keys', {
-      event,
-      dataKeys: data ? Object.keys(data) : null,
-      paymentKeys: data?.payment ? Object.keys(data.payment) : null,
-      billingKeys: data?.billing ? Object.keys(data.billing) : null
-    });
+    return res.status(404).json({ error: 'Pedido não encontrado' });
+  }
+
+  if (order.status === 'pago') {
+    return res.json({ ok: true, alreadyPaid: true, orderId: order.id });
+  }
+
+  await markOrderPaid(order.id);
+  const updated = await get('SELECT * FROM orders WHERE id = ?', [order.id]);
+  res.json({ ok: true, orderId: order.id, license: updated.license_key });
+});
+
+// Webhook do Mercado Pago
+// Notificações do tipo payment enviam data.id por query string e no body.
+// Validação de assinatura via header x-signature (se MERCADOPAGO_WEBHOOK_SECRET estiver configurado).
+// IMPORTANTE: notificações de QR Code NÃO podem ser validadas por secret, segundo docs do MP.
+router.post('/webhook/mercadopago', webhookLimiter, async (req, res) => {
+  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  const xSignature = req.headers['x-signature'];
+  const xRequestId = req.headers['x-request-id'];
+  const dataId = req.query['data.id'] || req.query.data_id || req.query.id || req.body?.data?.id;
+  const topic = req.query.type || req.body?.type || '';
+  const rawBody = req.rawBody || '';
+
+  if (secret) {
+    const valid = verifyMercadoPagoWebhook({ xSignature, xRequestId, dataId, secret });
+    if (!valid) {
+      log.warn('MP webhook: assinatura inválida', { ip: req.ip });
+      return res.status(401).json({ error: 'Assinatura inválida' });
+    }
+  } else if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+    log.warn('MP webhook: secret não configurado');
+    return res.status(503).json({ error: 'Webhook não configurado' });
+  } else {
+    log.warn('MP webhook: modo dev — assinatura ignorada');
+  }
+
+  log.info('MP webhook recebido', { topic, dataId });
+
+  // Acessa a notificação por query ou body
+  if (topic && topic !== 'payment') {
+    return res.status(200).json({ ok: true, ignored: true, topic });
+  }
+
+  if (!dataId) {
+    return res.status(400).json({ error: 'data.id ausente' });
+  }
+
+  // Consulta o pagamento no Mercado Pago
+  let payment;
+  try {
+    payment = await checkPaymentStatus(dataId);
+  } catch (e) {
+    log.error('MP webhook: erro ao consultar pagamento', { dataId, error: e.message });
+    return res.status(502).json({ error: 'Falha ao consultar pagamento' });
+  }
+
+  if (!payment || !payment.paid) {
+    return res.status(200).json({ ok: true, ignored: true, status: payment?.status });
+  }
+
+  // Encontra o pedido por payment_id ou external_reference
+  const paymentId = payment.id;
+  const externalReference = payment.external_reference;
+  let order = null;
+  if (paymentId) {
+    order = await get('SELECT * FROM orders WHERE payment_id = ?', [String(paymentId)]);
+  }
+  if (!order && externalReference) {
+    order = await get('SELECT * FROM orders WHERE id = ?', [String(externalReference)]);
+  }
+
+  if (!order) {
+    log.warn('MP webhook: pedido não encontrado', { paymentId, externalReference });
     return res.status(404).json({ error: 'Pedido não encontrado' });
   }
 
@@ -380,13 +434,13 @@ router.post('/:id/confirm', requireAdmin, async (req, res) => {
   if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (order.status === 'pago') return res.json({ ok: true, alreadyPaid: true, order: serialize(order, { admin: true }) });
   if (!order.payment_id) {
-    return res.status(400).json({ error: 'Pedido sem cobrança PIX gerada. Use a AbacatePay para confirmar.' });
+    return res.status(400).json({ error: 'Pedido sem cobrança gerada. Confira o gateway ativo.' });
   }
-  const gatewayStatus = await checkPaymentStatus(order.payment_id).catch(() => null);
-  const gatewayPaid = gatewayStatus && PAID_GATEWAY_STATUSES.has(gatewayStatus.status);
+  const gatewayStatus = await checkPaymentStatus(order.payment_id, order.id).catch(() => null);
+  const gatewayPaid = gatewayStatus && gatewayStatus.paid;
   if (!gatewayPaid) {
     if (!manualOverride || String(reason).trim().length < 10) {
-      return res.status(409).json({ error: 'Pagamento nao confirmado pelo gateway. Informe override manual com justificativa.' });
+      return res.status(409).json({ error: 'Pagamento não confirmado pelo gateway. Informe override manual com justificativa.' });
     }
     log.warn(`admin ${req.user.email} confirmou manualmente pedido ${order.id}`, { reason: String(reason).slice(0, 200) });
   }
@@ -417,8 +471,8 @@ router.get('/:id/return', statusLimiter, async (req, res) => {
   // pagou e o webhook ainda não chegou, isso garante que o status atualize.
   if (order.status === 'pendente' && order.payment_id) {
     try {
-      const s = await checkPaymentStatus(order.payment_id);
-      if (s && PAID_GATEWAY_STATUSES.has(s.status)) {
+      const s = await checkPaymentStatus(order.payment_id, order.id);
+      if (s && s.paid) {
         await markOrderPaid(order.id);
       }
     } catch (e) {
@@ -453,12 +507,12 @@ router.get('/:id/status', statusLimiter, async (req, res) => {
     return res.status(401).json({ error: 'Não autorizado' });
   }
 
-  // FALLBACK: se o pedido está pendente MAS tem payment_id, faz check direto na AbacatePay
+  // FALLBACK: se o pedido está pendente MAS tem payment_id, faz check direto no gateway.
   // Isso garante confirmação rápida mesmo se o webhook falhar ou demorar.
   if (order.status === 'pendente' && order.payment_id) {
     try {
-      const pixStatus = await checkPaymentStatus(order.payment_id);
-      if (pixStatus && PAID_GATEWAY_STATUSES.has(pixStatus.status)) {
+      const pixStatus = await checkPaymentStatus(order.payment_id, order.id);
+      if (pixStatus && pixStatus.paid) {
         await markOrderPaid(order.id);
         const fresh = await get('SELECT id, status, paid_at FROM orders WHERE id = ?', [order.id]);
         return res.json({
@@ -654,7 +708,7 @@ router.patch('/:id', requireAdmin, async (req, res) => {
   // - pendente -> cancelado: OK
   // - pago -> cancelado: OK (mas não permite reverter depois)
   if (status === 'pago' && !order.payment_id) {
-    return res.status(400).json({ error: 'Não é possível marcar como pago sem um pagamento registrado. Confirme via AbacatePay.' });
+    return res.status(400).json({ error: 'Não é possível marcar como pago sem um pagamento registrado. Confirme via gateway.' });
   }
   if (status === 'pago' && order.status !== 'pendente') {
     return res.status(400).json({ error: `Transição inválida de "${order.status}" para "pago".` });

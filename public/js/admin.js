@@ -631,7 +631,12 @@ function renderActiveSales() {
     if (!order) { toast('Pedido não encontrado', false); return; }
     const next = order.status === 'pago' ? 'pendente' : order.status === 'pendente' ? 'cancelado' : 'pago';
     try {
-      await DB.updateOrder(order.id, { status: next });
+      const patch = { status: next };
+      if (next === 'pago') {
+        patch.manualOverride = true;
+        patch.reason = 'Confirmação manual via painel administrativo';
+      }
+      await DB.updateOrder(order.id, patch);
       await DB.getAllOrders();
       renderAll();
       toast(`Status: ${next}`);
@@ -913,9 +918,15 @@ $('#saveSaleBtn').onclick = async () => {
       affiliateCode: affiliate ? affiliate.code : null
     });
     const order = result.order;
-    // Se o admin escolheu status 'pago' direto, confirmar o pedido (vai ao gateway e credita afiliado)
+    // Se o admin escolheu status 'pago' direto, confirmar o pedido manualmente
     if (order && f.status.value === 'pago') {
-      try { await DB.updateOrder(order.id, { status: 'pago' }); } catch (e) { console.warn('updateOrder pago falhou:', e.message); }
+      try {
+        await DB.updateOrder(order.id, {
+          status: 'pago',
+          manualOverride: true,
+          reason: 'Pedido criado e pago manualmente pelo administrador'
+        });
+      } catch (e) { console.warn('updateOrder pago falhou:', e.message); toast(e.message || 'Erro ao confirmar pagamento', false); }
     }
     // Re-fetch do backend para garantir consistência total (incluindo credit de afiliado)
     await DB.getAllOrders();

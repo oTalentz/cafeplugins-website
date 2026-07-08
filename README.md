@@ -1,6 +1,6 @@
 # cafe plugins — Loja de Plugins Minecraft
 
-Loja completa para vender plugins de Minecraft com **downloads via GitHub Releases**, **pagamento por PIX** (AbacatePay), **e-mails transacionais** (Brevo), **banco de dados gerenciado** (Turso / libSQL) e **programa de afiliados** com payouts mensais via PIX. Inclui painel do cliente/afiliado e painel admin.
+Loja completa para vender plugins de Minecraft com **downloads via GitHub Releases**, **pagamento via Mercado Pago** (PIX transparente + cartão) ou **AbacatePay** (PIX), **e-mails transacionais** (Brevo), **banco de dados gerenciado** (Turso / libSQL) e **programa de afiliados** com payouts mensais via PIX. Inclui painel do cliente/afiliado e painel admin.
 
 ```
 +------------------+        +------------------+        +-------------------+
@@ -20,7 +20,7 @@ Loja completa para vender plugins de Minecraft com **downloads via GitHub Releas
 - **Backend**: Node.js 18+ ES Modules, Express, JWT — deployado como Vercel Serverless Function
 - **DB**: Turso (libSQL) — SQLite distribuído
 - **E-mail**: Brevo (ex-Sendinblue)
-- **Pagamento**: AbacatePay (PIX)
+- **Pagamento**: Mercado Pago (PIX transparente + cartão) ou AbacatePay (PIX)
 - **Arquivos**: GitHub Releases (CDN gratuito)
 - **Auth**: bcrypt + JWT (7 dias, iss/aud)
 - **Host**: Vercel (frontend + backend, sem servidor persistente)
@@ -55,8 +55,13 @@ A primeira execução cria as tabelas (com migrations idempotentes), o admin e o
 | `BREVO_API_KEY` | ❌ | Sem isso, e-mails viram **stub** (não enviam) |
 | `BREVO_SENDER_EMAIL` | ❌ | E-mail remetente verificado no Brevo |
 | `BREVO_SENDER_NAME` | ❌ | Nome do remetente (default: "cafe plugins") |
+| `EMAIL_CODE_COOLDOWN_SECONDS` | ❌ | Segundos de espera entre envios de códigos por e-mail (default: `60`) |
+| `PAYMENT_GATEWAY` | ❌ | `mercadopago` ou `abacate`. Se omitido, prefere Mercado Pago quando `MERCADOPAGO_ACCESS_TOKEN` está configurado. |
+| `MERCADOPAGO_ACCESS_TOKEN` | ❌ | Access token de produção/teste do Mercado Pago. Sem isso cai no stub. |
+| `MERCADOPAGO_WEBHOOK_SECRET` | ❌ | Secret para validar assinatura dos webhooks (`x-signature`) do Mercado Pago. |
+| `MERCADOPAGO_URL` | ❌ | Default: `https://api.mercadopago.com` |
 | `ABACATE_API_KEY` | ❌ | Sem isso, PIX vira **stub** (QR fake) |
-| `ABACATE_URL` | ❌ | Default: `https://api.abacatepay.com/v1` |
+| `ABACATE_URL` | ❌ | Default: `https://api.abacatepay.com/v2` |
 | `ABACATE_WEBHOOK_SECRET` | ❌ | HMAC-SHA256 do body via header `x-webhook-signature` (recomendado). Fallback: header `X-Webhook-Secret`. |
 | `MANUAL_PIX_KEY` | ❌ | PIX manual para modo stub (fallback) |
 | `GITHUB_TOKEN` | ❌ | Só necessário para upload de plugins pelo admin |
@@ -90,8 +95,8 @@ A primeira execução cria as tabelas (com migrations idempotentes), o admin e o
 - `DELETE /:id` — deletar (admin)
 
 ### Pedidos (`/api/orders/*`)
-- `POST /checkout` — `{ name, email, items, affiliateCode? }` → cria pedido + PIX + cookie 30d do afiliado. Retorna `breakdown` com `subtotal/gatewayFee/netAmount/commission/commissionRate/storeKeeps`
-- `POST /webhook` — webhook do AbacatePay (v1 `billing.paid` / v2 `checkout.completed`, `transparent.completed`)
+- `POST /checkout` — `{ name, email, items, affiliateCode?, paymentMethod? }` → cria pedido + PIX/cartão + cookie 30d do afiliado. Retorna `breakdown` com `subtotal/gatewayFee/netAmount/commission/commissionRate/storeKeeps`, além de `checkoutUrl` (cartão), `pixQrCode`, `pixQrImage` e `pixExpiresAt` (PIX) quando aplicável
+- `POST /webhook` — webhook do gateway ativo: AbacatePay (`billing.paid` / `checkout.completed`) ou Mercado Pago (`payment.created`, `payment.updated`, assinatura `x-signature`)
 - `POST /:id/confirm` — confirma manual (admin)
 - `PATCH /:id` — atualiza status (admin, transições validadas)
 - `GET  /me` — meus pedidos (auth)
@@ -124,7 +129,7 @@ A primeira execução cria as tabelas (com migrations idempotentes), o admin e o
 - `POST /orders` — cria pedido manual (admin, opcionalmente com `affiliate_code` + `status: pago`)
 
 ### Diagnóstico
-- `GET  /api/diag` — verifica env, DB, Brevo, AbacatePay (use `public/diag.html`)
+- `GET  /api/diag` — verifica env, DB, Brevo, AbacatePay e Mercado Pago (use `public/diag.html`)
 - `GET  /api/health` — health check simples
 
 Todos os endpoints `/api/admin/*` e mutações admin exigem `Authorization: Bearer <token>` de um usuário com `role: admin`.
@@ -143,12 +148,22 @@ Já configurado. O schema é criado com migrations idempotentes no primeiro boot
 - Em **Transactional → Senders & Domains**, verifique o e-mail que vai usar como remetente (`BREVO_SENDER_EMAIL`)
 - Sem isso: códigos de login e e-mails de pagamento viram **stub** (você vê no console mas ninguém recebe)
 
-### 3. AbacatePay (PIX)
+### 3. Mercado Pago (recomendado — PIX transparente + cartão)
+- Crie conta em [mercadopago.com.br](https://www.mercadopago.com.br) e ative **credenciais de produção** (ou de teste)
+- Em **Desenvolvedor → Credenciais**, copie o `Access Token` para `MERCADOPAGO_ACCESS_TOKEN`
+- Em **Aplicações → Webhooks**, adicione a URL pública: `https://cafeplugins.com/api/orders/webhook` e ative eventos `payment` (`payment.created`, `payment.updated`)
+- Configure a assinatura (`x-signature`) no webhook e defina `MERCADOPAGO_WEBHOOK_SECRET` no `.env` para validação
+- Defina `PAYMENT_GATEWAY=mercadopago` (ou deixe em branco — a loja prefere Mercado Pago quando `MERCADOPAGO_ACCESS_TOKEN` está presente)
+- Para PIX transparente: o cliente vê o QR code gerado por `/v1/orders` diretamente no modal
+- Para cartão: o redirecionamento abre o checkout seguro do Mercado Pago (`/checkout/preferences`)
+
+### 4. AbacatePay (PIX — alternativa)
 - Crie conta em [app.abacatepay.com](https://app.abacatepay.com) — só recebe pagamento, grátis
 - Em **Configurações → API**, copie o token para `ABACATE_API_KEY`
 - Em **Webhooks**, adicione a URL pública: `https://cafeplugins.com/api/orders/webhook` e configure o header `x-webhook-signature` (HMAC-SHA256 do body com `ABACATE_WEBHOOK_SECRET` como chave)
-- Sem isso: o checkout gera um QR fake de 64 zeros. **Você precisa aprovar pedidos manualmente** pelo painel admin
-- **Alternativa**: defina `MANUAL_PIX_KEY` no `.env` e mostre a chave PIX no checkout para o cliente pagar direto
+- Defina `PAYMENT_GATEWAY=abacate` se quiser forçar o uso no lugar do Mercado Pago
+
+Sem nenhum gateway: o checkout gera um QR fake de 64 zeros. **Você precisa aprovar pedidos manualmente** pelo painel admin. **Alternativa**: defina `MANUAL_PIX_KEY` no `.env` e mostre a chave PIX no checkout para o cliente pagar direto.
 
 ### 4. GitHub Releases (arquivos de plugins)
 - Os plugins `.jar` e imagens ficam em um repositório público de releases
@@ -159,15 +174,15 @@ Já configurado. O schema é criado com migrations idempotentes no primeiro boot
 
 1. Cliente vai em `index.html`, clica em **Comprar** num plugin
 2. Modal de pagamento abre → frontend chama `POST /api/orders/checkout`
-3. Backend valida produtos, anti-double-purchase, resolve afiliado, calcula **comissão líquida** (ver abaixo) e chama **AbacatePay** para gerar PIX
-4. QR Code aparece no modal → cliente paga
-5. **AbacatePay** envia webhook para `POST /api/orders/webhook` → backend chama `markOrderPaid()`:
+3. Backend valida produtos, anti-double-purchase, resolve afiliado, calcula **comissão líquida** (ver abaixo) e chama o gateway ativo (Mercado Pago ou AbacatePay) para gerar PIX/cartão
+4. QR Code ou botão de redirecionamento para checkout aparece no modal → cliente paga
+5. O gateway envia webhook para `POST /api/orders/webhook` → backend valida assinatura e chama `markOrderPaid()`:
    - Marca pedido como `pago`
    - Se há afiliado ativo: `conversions+1, total_sales+1, total_earned+=commission, daily_stats[hoje].sales+1/earned+`
    - Gera `license_key` e envia e-mail com link de download
 6. Cliente acessa `account.html` → vê pedidos, clica em **Baixar** → `download.html` valida token → redireciona para GitHub Releases
 
-**Failsafe do polling**: mesmo se o webhook falhar, o frontend faz polling em `GET /orders/:id/status` que automaticamente consulta a AbacatePay e chama `markOrderPaid` se estiver pago.
+**Failsafe do polling**: mesmo se o webhook falhar, o frontend faz polling em `GET /orders/:id/status` que consulta o gateway e chama `markOrderPaid` se estiver pago.
 
 ## Cálculo de comissão (modelo LÍQUIDO)
 
@@ -215,8 +230,11 @@ loja fica = subtotal − gatewayFee − (subtotal × taxRate) − comissão
    - `BREVO_API_KEY`
    - `BREVO_SENDER_EMAIL` (ex: `noreply@cafeplugins.com`)
    - `BREVO_SENDER_NAME` (ex: `cafe plugins`)
-   - `ABACATE_API_KEY`
-   - `ABACATE_WEBHOOK_SECRET`
+   - `MERCADOPAGO_ACCESS_TOKEN`
+   - `MERCADOPAGO_WEBHOOK_SECRET`
+   - `PAYMENT_GATEWAY` (`mercadopago` ou `abacate`)
+   - `ABACATE_API_KEY` (só se forçar gateway abacate)
+   - `ABACATE_WEBHOOK_SECRET` (só se usar AbacatePay)
    - `JWT_SECRET` (gere com `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`)
    - `ADMIN_EMAIL`
    - `ADMIN_PASSWORD`

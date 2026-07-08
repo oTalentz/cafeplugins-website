@@ -2,9 +2,100 @@ import { Router } from 'express';
 import { envStatus, isReady, get, all } from 'api-core/lib/db.js';
 import { checkEnv, createLogger } from 'api-core/lib/logger.js';
 import { requireAdmin } from 'api-core/lib/auth.js';
+import { isValidEmail } from 'api-core/lib/util.js';
 
 const router = Router();
 const log = createLogger('diag');
+
+async function brevoFetch(path, apiKey) {
+  const r = await fetch(`https://api.brevo.com/v3${path}`, {
+    headers: {
+      'api-key': apiKey,
+      'Accept': 'application/json'
+    }
+  });
+  const body = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, body };
+}
+
+async function checkBrevo() {
+  const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = (process.env.BREVO_SENDER_EMAIL || '').trim();
+  const senderName = process.env.BREVO_SENDER_NAME || 'cafe plugins';
+
+  if (!apiKey) {
+    return { ok: false, error: 'BREVO_API_KEY não configurado' };
+  }
+
+  // 1. Valida chave e recupera dados da conta
+  const account = await brevoFetch('/account', apiKey);
+  if (!account.ok) {
+    return {
+      ok: false,
+      error: `Brevo API retornou ${account.status}${account.body?.message ? ': ' + account.body.message : ''}`,
+      status: account.status
+    };
+  }
+
+  const accountEmail = account.body.email;
+  const company = account.body.companyName || account.body.company || null;
+
+  // 2. Sender é obrigatório para envio real
+  if (!senderEmail) {
+    return {
+      ok: false,
+      error: 'BREVO_SENDER_EMAIL não configurado (remetente obrigatório para envio)',
+      account: { email: accountEmail, company }
+    };
+  }
+
+  if (!isValidEmail(senderEmail)) {
+    return {
+      ok: false,
+      error: 'BREVO_SENDER_EMAIL inválido',
+      account: { email: accountEmail, company }
+    };
+  }
+
+  // 3. Verifica se o remetente está cadastrado e ativo no Brevo
+  const senders = await brevoFetch('/senders', apiKey);
+  if (!senders.ok) {
+    return {
+      ok: false,
+      error: `Não foi possível listar remetentes do Brevo: ${senders.status}`,
+      account: { email: accountEmail, company },
+      sender: { email: senderEmail, name: senderName, configured: false }
+    };
+  }
+
+  const list = Array.isArray(senders.body?.senders) ? senders.body.senders : [];
+  const sender = list.find(s => s.email && s.email.toLowerCase() === senderEmail.toLowerCase());
+
+  if (!sender) {
+    return {
+      ok: false,
+      error: `Remetente ${senderEmail} não encontrado no Brevo. Crie/verifique o sender em Transactional > Senders & Domains.`,
+      account: { email: accountEmail, company },
+      sender: { email: senderEmail, name: senderName, configured: false }
+    };
+  }
+
+  if (!sender.active) {
+    return {
+      ok: false,
+      error: `Remetente ${senderEmail} está inativo no Brevo. Verifique o e-mail de confirmação.`,
+      account: { email: accountEmail, company },
+      sender: { email: sender.email, name: sender.name, active: false, id: sender.id }
+    };
+  }
+
+  return {
+    ok: true,
+    email: accountEmail,
+    company,
+    sender: { email: sender.email, name: sender.name, active: true, id: sender.id }
+  };
+}
 
 const REQUIRED = [
   'TURSO_URL',
@@ -132,18 +223,10 @@ router.get('/', requireAdmin, async (req, res) => {
   }
 
   // Teste Brevo
-  if (process.env.BREVO_API_KEY) {
-    try {
-      const r = await fetch('https://api.brevo.com/v3/account', {
-        headers: { 'api-key': process.env.BREVO_API_KEY }
-      });
-      const body = await r.json().catch(() => ({}));
-      result.checks.brevo = { ok: r.ok, status: r.status };
-    } catch (e) {
-      result.checks.brevo = { ok: false, error: e.message };
-    }
-  } else {
-    result.checks.brevo = { ok: false, error: 'BREVO_API_KEY não configurado' };
+  try {
+    result.checks.brevo = await checkBrevo();
+  } catch (e) {
+    result.checks.brevo = { ok: false, error: e.message };
   }
 
   // Teste AbacatePay: usa endpoint de listagem de cobranças PIX (read-only e público na auth)

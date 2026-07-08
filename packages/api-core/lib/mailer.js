@@ -13,24 +13,55 @@
 import { escapeHtml } from './sanitize.js';
 import { createLogger } from './logger.js';
 import { BREVO_URL } from './config.js';
+import { isValidEmail } from './util.js';
 
 const log = createLogger('mailer');
 
 export function mailerEnabled() {
-  return Boolean(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL);
+  return Boolean(process.env.BREVO_API_KEY && isValidEmail(process.env.BREVO_SENDER_EMAIL));
+}
+
+function normalizeRecipients(to) {
+  if (!to) return [];
+  const list = Array.isArray(to) ? to : [to];
+  return list.map(item => {
+    if (typeof item === 'string') {
+      return { email: item.trim().toLowerCase() };
+    }
+    if (item && typeof item === 'object' && item.email) {
+      return { email: String(item.email).trim().toLowerCase(), name: item.name };
+    }
+    return null;
+  }).filter(Boolean);
 }
 
 export async function sendMail({ to, subject, html, text }) {
-  if (!mailerEnabled()) {
+  const senderEmail = (process.env.BREVO_SENDER_EMAIL || '').trim().toLowerCase();
+  if (!process.env.BREVO_API_KEY || !senderEmail) {
     log.info('STUB mode', { to, subject, text: (text || '').slice(0, 200) });
     return { stubbed: true };
   }
+
+  if (!isValidEmail(senderEmail)) {
+    throw new Error(`BREVO_SENDER_EMAIL inválido: ${senderEmail}`);
+  }
+
+  const recipients = normalizeRecipients(to);
+  if (!recipients.length) {
+    throw new Error('Nenhum destinatário válido fornecido');
+  }
+  for (const r of recipients) {
+    if (!isValidEmail(r.email)) {
+      throw new Error(`Destinatário inválido: ${r.email}`);
+    }
+  }
+
   const body = {
     sender: {
       name: process.env.BREVO_SENDER_NAME || 'cafe plugins',
-      email: process.env.BREVO_SENDER_EMAIL
+      email: senderEmail
     },
-    to: Array.isArray(to) ? to.map(email => ({ email })) : [{ email: to }],
+    to: recipients,
     subject,
     htmlContent: html,
     textContent: text
@@ -48,7 +79,7 @@ export async function sendMail({ to, subject, html, text }) {
     const err = await r.text();
     throw new Error(`Brevo error ${r.status}: ${err}`);
   }
-  return r.json();
+  return r.json().catch(() => ({}));
 }
 
 export function loginCodeEmail({ code, email, purpose = 'login' }) {

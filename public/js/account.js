@@ -76,6 +76,10 @@ async function verifyPasswordLogin(email, password) {
       $('#emailForm').style.display = 'none';
       showVerifyEmailPanel(pendingEmail);
       toast('Confirme seu e-mail para entrar. Enviamos um novo código.', false);
+      const resendBtn = $('#resendBtn') || $('#emailForm button[type=submit]');
+      if (result.retryAfter && resendBtn) {
+        startResendCooldown(resendBtn, result.retryAfter);
+      }
       return;
     }
     // CRIT-01 FIX: backend agora retorna 401 + code: 'USE_CODE' para NO_PASSWORD
@@ -111,12 +115,42 @@ async function verifyPasswordLogin(email, password) {
   } catch (e) { console.warn('Post-login refresh failed:', e.message); }
 }
 
+function startResendCooldown(btn, seconds, onDone) {
+  if (!btn) return;
+  btn.disabled = true;
+  let left = seconds;
+  const tick = () => {
+    btn.textContent = `Reenviar (${left}s)`;
+    if (--left < 0) {
+      btn.disabled = false;
+      btn.textContent = 'Reenviar código';
+      if (onDone) onDone();
+      return;
+    }
+    setTimeout(tick, 1000);
+  };
+  tick();
+}
+
 async function sendCode(email) {
   const btn = $('#resendBtn') || $('#emailForm button[type=submit]');
   const endLoading = Loading.buttonStart(btn, 'Enviar código');
-  const code = await DB.generateLoginCode('user', email.toLowerCase());
+  let res;
+  try {
+    res = await DB.generateLoginCode('user', email.toLowerCase());
+  } catch (err) {
+    endLoading();
+    const retryAfter = err.data && err.data.retryAfter;
+    if (retryAfter) {
+      toast(`Aguarde ${retryAfter}s para reenviar.`, false);
+      startResendCooldown(btn, retryAfter);
+    } else {
+      toast(err.message || 'Erro ao enviar código', false);
+    }
+    return;
+  }
   endLoading();
-  if (!code) {
+  if (!res || !res.ok) {
     toast('E-mail não cadastrado', false);
     return;
   }
@@ -125,7 +159,8 @@ async function sendCode(email) {
   $('#codeInput').value = '';
   $('#emailForm').style.display = 'none';
   $('#codeForm').style.display = 'block';
-  $('#devCode').textContent = code;
+  $('#devCode').textContent = res.devCode || '—';
+  startResendCooldown(btn, res.retryAfter || 60);
   setTimeout(() => $('#codeInput').focus(), 50);
 }
 
@@ -278,8 +313,11 @@ function renderOrders() {
     const ic = (item?.name || '?').charAt(0).toUpperCase();
     const isPaid = o.status === 'pago';
     const hasUrl = item?.downloadUrl;
+    const isPix = o.payment === 'pix';
+    const hasPixQr = !!o.pixQrCode;
+    const viewQrLabel = (typeof I18N !== 'undefined' ? I18N.t('account.view_pix_qr') : 'Ver QR do Pix');
     return `
-      <div class="order-card">
+      <div class="order-card" data-order-id="${escHtml(o.id)}">
         <div class="order-ic">${escHtml(ic)}</div>
         <div class="order-info">
           <h4>${escHtml(item?.name || 'Plugin')}</h4>
@@ -287,16 +325,100 @@ function renderOrders() {
             <span>${fmtDate(o.createdAt)}</span>
             <span>${brl(o.total)}</span>
             <span><span class="pill ${o.status === 'pago' ? 'ok' : o.status === 'pendente' ? 'warn' : 'danger'}">${escHtml(o.status)}</span></span>
-            <span>Licença <code>${escHtml(o.licenseKey)}</code></span>
+            <span>${escHtml(o.paymentMethod || o.payment || 'pix')}</span>
+            ${isPaid ? `<span>Licença <code>${escHtml(o.licenseKey)}</code></span>` : ''}
           </div>
         </div>
         <div class="order-actions">
+          ${!isPaid && isPix && hasPixQr ? `<button class="btn btn-secondary view-pix-qr" data-order-id="${escHtml(o.id)}" style="font-size:0.8125rem">${escHtml(viewQrLabel)}</button>` : ''}
           ${isPaid && hasUrl ? `<a href="download.html?t=${encodeURIComponent(o.downloadToken)}" class="btn btn-primary">Baixar</a>` : ''}
-          ${!isPaid ? '<span style="color:var(--ink-3); font-size:0.8125rem">aguardando pagamento</span>' : ''}
+          ${!isPaid && !(isPix && hasPixQr) ? '<span style="color:var(--ink-3); font-size:0.8125rem">aguardando pagamento</span>' : ''}
           ${isPaid && !hasUrl ? '<span style="color:var(--ink-3); font-size:0.8125rem">link em breve</span>' : ''}
         </div>
       </div>`;
   }).join('');
+
+  $$('.view-pix-qr', target).forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.orderId;
+      const order = orders.find(o => o.id === id);
+      if (order) openPixModal(order);
+    };
+  });
+}
+
+function openPixModal(order) {
+  const modal = $('#pixModal');
+  if (!modal) return;
+
+  $('#pixOrderId').textContent = order.id;
+  $('#pixAmount').textContent = brl(order.total);
+  $('#pixQrImage').src = order.pixQrImage || '';
+  $('#pixQrImage').style.display = order.pixQrImage ? '' : 'none';
+  $('#pixCopyPaste').value = order.pixQrCode || '';
+  $('#pixStatus').textContent = 'Aguardando pagamento…';
+  $('#pixStatus').className = 'pill warn';
+
+  const expiresAt = order.pixExpiresAt ? new Date(order.pixExpiresAt).getTime() : Date.now() + 30 * 60 * 1000;
+  const timerEl = $('#pixTimer');
+  function tick() {
+    const left = Math.max(0, expiresAt - Date.now());
+    const m = Math.floor(left / 60000);
+    const s = Math.floor((left % 60000) / 1000);
+    timerEl.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    if (left <= 0) {
+      timerEl.textContent = 'expirado';
+      $('#pixStatus').textContent = 'PIX expirado';
+      $('#pixStatus').className = 'pill danger';
+      return;
+    }
+    setTimeout(tick, 1000);
+  }
+  tick();
+
+  $('#pixCopyBtn').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText($('#pixCopyPaste').value);
+      toast('Código PIX copiado');
+    } catch {
+      $('#pixCopyPaste').select();
+      document.execCommand('copy');
+      toast('Código PIX copiado');
+    }
+  };
+
+  let stopped = false;
+  let pollTimer = null;
+  async function poll() {
+    if (stopped) return;
+    try {
+      const r = await DB.getOrderStatus(order.id);
+      if (r && r.is_paid) {
+        stopped = true;
+        $('#pixStatus').textContent = 'Pago! Licença liberada.';
+        $('#pixStatus').className = 'pill ok';
+        renderOrders(); // atualiza botão para Baixar
+        toast('Pagamento confirmado! Atualizando pedidos…');
+        return;
+      }
+      if (r && r.status === 'cancelado') {
+        stopped = true;
+        $('#pixStatus').textContent = 'Pedido cancelado';
+        $('#pixStatus').className = 'pill danger';
+        return;
+      }
+    } catch {}
+    pollTimer = setTimeout(poll, 5000);
+  }
+  poll();
+
+  modal.style.display = 'flex';
+  $('#pixCloseBtn').onclick = () => {
+    stopped = true;
+    if (pollTimer) clearTimeout(pollTimer);
+    modal.style.display = 'none';
+  };
+  modal.onclick = (e) => { if (e.target === modal) $('#pixCloseBtn').click(); };
 }
 
 function emptyOrders(title, sub) {
@@ -754,6 +876,7 @@ function showVerifyEmailPanel(email, devCode) {
   // Wire resend
   if (!$('#verifyResendBtn').onclick) {
     $('#verifyResendBtn').onclick = async () => {
+      const btn = $('#verifyResendBtn');
       try {
         const r = await DB.requestVerifyEmail(pendingEmail);
         if (r.devCode) {
@@ -761,8 +884,15 @@ function showVerifyEmailPanel(email, devCode) {
           $('#verifyDevCode').textContent = r.devCode;
         }
         toast('Código reenviado');
+        startResendCooldown(btn, r.retryAfter || 60);
       } catch (e) {
-        toast(e.message || 'Erro ao reenviar', false);
+        const retryAfter = e.data && e.data.retryAfter;
+        if (retryAfter) {
+          toast(`Aguarde ${retryAfter}s para reenviar.`, false);
+          startResendCooldown(btn, retryAfter);
+        } else {
+          toast(e.message || 'Erro ao reenviar', false);
+        }
       }
     };
     $('#verifyForm').addEventListener('submit', async (e) => {

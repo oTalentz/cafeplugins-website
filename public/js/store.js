@@ -348,6 +348,7 @@ async function confirmPurchase() {
     );
 
     const order = result.order;
+    const pix = result.pix;
     const checkoutUrl = result.checkoutUrl;
     const cardError = result.cardError;
 
@@ -368,18 +369,18 @@ async function confirmPurchase() {
     persistCart();
     closeCheckout();
 
-    // Se for cartão, redirecionar para checkout da AbacatePay
+    // Se for cartão, redirecionar para checkout seguro do gateway (Mercado Pago/AbacatePay)
     if (isCard && checkoutUrl) {
-      toast('Redirecionando para pagamento com cartão...');
+      toast(I18N ? I18N.t('payment.card.redirect') : 'Redirecionando para pagamento com cartão...');
       setTimeout(() => {
         window.location.href = checkoutUrl;
       }, 800);
       return;
     }
 
-    // Se for cartão mas não tem checkoutUrl, algo falhou - reabria o checkout
+    // Se for cartão mas não tem checkoutUrl, algo falhou - reabre o checkout
     if (isCard && !checkoutUrl) {
-      toast('Pagamento com cartão indisponível. Tente novamente ou use PIX.', false);
+      toast(I18N ? I18N.t('payment.card.unavailable') : 'Pagamento com cartão indisponível. Tente novamente ou use PIX.', false);
       return;
     }
 
@@ -390,12 +391,13 @@ async function confirmPurchase() {
       showPixModal({
         pixQrCode,
         pixQrImage,
-        expiresAt: null
+        expiresAt: pix?.expiresAt || order.pixExpiresAt || null
       }, order);
     } else if (method === 'pix' && !pixQrCode) {
       // Pedido criado mas PIX falhou - mostra toast para ir ao account
       showPostPurchaseToast(order, affiliate, commission);
-      toast('Pedido criado, mas a cobrança PIX falhou. Use o link "Ver minha conta" para tentar novamente.', false);
+      const pixFailMsg = I18N ? I18N.t('payment.pix.failed') : 'Pedido criado, mas a cobrança PIX falhou. Use o link "Ver minha conta" para tentar novamente.';
+      toast(pixFailMsg, false);
     } else {
       showPostPurchaseToast(order, affiliate, commission);
     }

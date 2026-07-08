@@ -14,6 +14,10 @@ export const CORS_ORIGINS = (process.env.CORS_ORIGIN || APP_URL)
 export const ABACATE_URL = process.env.ABACATE_URL || 'https://api.abacatepay.com/v2';
 export const ABACATE_TIMEOUT_MS = 8000;
 
+// Mercado Pago
+export const MERCADOPAGO_URL = process.env.MERCADOPAGO_URL || 'https://api.mercadopago.com';
+export const MERCADOPAGO_TIMEOUT_MS = 12000;
+
 // Brevo
 export const BREVO_URL = 'https://api.brevo.com/v3/smtp/email';
 

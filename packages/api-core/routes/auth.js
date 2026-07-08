@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { get, all, run } from 'api-core/lib/db.js';
 import { hashPassword, verifyPassword, signToken, requireAuth, sanitizeUser } from 'api-core/lib/auth.js';
-import { sendMail, loginCodeEmail, verifyEmail as verifyEmailTpl } from 'api-core/lib/mailer.js';
-import { uid, loginCode6, nowISO, isValidEmail } from 'api-core/lib/util.js';
+import { getCodeCooldown, sendCode, sendVerifyCode } from 'api-core/lib/codes.js';
+import { uid, nowISO, isValidEmail } from 'api-core/lib/util.js';
 import { sanitizeText, LIMITS } from 'api-core/lib/sanitize.js';
 import { rateLimit } from 'api-core/lib/security.js';
 import { createLogger } from 'api-core/lib/logger.js';
@@ -52,17 +52,11 @@ router.post('/register', registerLimiter, async (req, res) => {
   );
   const user = await get('SELECT * FROM users WHERE id = ?', [id]);
 
-  // Envia code de verificação de e-mail
-  const code = loginCode6();
-  const codeId = uid('lc-');
-  const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-  await run(
-    'INSERT INTO login_codes (id, target_type, target_email, code, purpose, expires_at, used, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
-    [codeId, 'user', e, code, 'verify', expires, nowISO()]
-  );
+  // Envia code de verificação de e-mail (primeiro envio, sem resend)
+  let code = null;
   try {
-    const tpl = verifyEmailTpl({ code, email: e });
-    await sendMail({ to: e, ...tpl });
+    const sent = await sendVerifyCode(user);
+    code = sent.code;
   } catch (err) {
     log.error('Mailer error (verify)', { error: err.message });
   }
@@ -73,7 +67,7 @@ router.post('/register', registerLimiter, async (req, res) => {
     user: sanitizeUser(user),
     token: null,
     requiresEmailVerification: true,
-    ...(isDev ? { devCode: code } : {})
+    ...(isDev && code ? { devCode: code } : {})
   });
 });
 
@@ -117,13 +111,14 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
     // Bloqueia login se e-mail não foi verificado
     if (!user.email_verified) {
-      // Dispara reenvio automático do code de verify (idempotente)
-      await sendVerifyCode(user);
+      // Dispara reenvio automático do code de verify (respeitando cooldown)
+      const { retryAfter } = await sendVerifyCode(user, { silent: true });
       log.warn('login failed: email not verified', { email: e });
       return res.status(403).json({
         error: 'Confirme seu e-mail para entrar. Enviamos um código de 6 dígitos.',
         code: 'EMAIL_NOT_VERIFIED',
-        email: user.email
+        email: user.email,
+        retryAfter: retryAfter || 0
       });
     }
     const token = signToken({ sub: user.id, role: user.role, tv: user.token_version || 0 });
@@ -135,32 +130,6 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
-// Helper: gera e envia code de verificação de e-mail (idempotente)
-async function sendVerifyCode(user) {
-  try {
-    // Cooldown: não envia se último code foi há menos de 60s
-    const recent = await get(
-      "SELECT created_at FROM login_codes WHERE target_email = ? AND purpose = 'verify' ORDER BY created_at DESC LIMIT 1",
-      [user.email]
-    );
-    if (recent) {
-      const ageMs = Date.now() - new Date(recent.created_at).getTime();
-      if (ageMs < 60_000) return; // silent: cliente não percebe
-    }
-    const code = loginCode6();
-    const codeId = uid('lc-');
-    const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-    await run(
-      'INSERT INTO login_codes (id, target_type, target_email, code, purpose, expires_at, used, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
-      [codeId, 'user', user.email, code, 'verify', expires, nowISO()]
-    );
-    const tpl = verifyEmailTpl({ code, email: user.email });
-    await sendMail({ to: user.email, ...tpl });
-  } catch (err) {
-    console.error('sendVerifyCode error:', err.message);
-  }
-}
-
 router.post('/request-code', codeLimiter, async (req, res) => {
   const { email, purpose = 'login' } = req.body || {};
   if (!ALLOWED_CODE_PURPOSES.has(purpose)) return res.status(400).json({ error: 'Finalidade do codigo invalida' });
@@ -168,29 +137,34 @@ router.post('/request-code', codeLimiter, async (req, res) => {
   if (!isValidEmail(email)) return res.status(400).json({ error: 'E-mail inválido' });
   const e = email.toLowerCase().trim();
   const user = await get('SELECT id, email FROM users WHERE email = ?', [e]);
+
+  // Protege contra enumeração de e-mail: resposta genérica
   if (!user) {
-    // Resposta genérica para evitar enumeração
     return res.json({ ok: true, expiresIn: 600 });
   }
 
-  const code = loginCode6();
-  const id = uid('lc-');
-  const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-  await run(
-    'INSERT INTO login_codes (id, target_type, target_email, code, purpose, expires_at, used, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
-    [id, 'user', e, code, purpose, expires, nowISO()]
-  );
-
-  try {
-    const tpl = loginCodeEmail({ code, email: e, purpose });
-    await sendMail({ to: e, ...tpl });
-  } catch (err) {
-    console.error('Mailer error:', err.message);
+  // Delay por e-mail para evitar reenvio em massa
+  const cd = await getCodeCooldown(e, purpose);
+  if (cd.active) {
+    return res.status(429).json({
+      error: `Aguarde ${cd.retryAfter}s antes de pedir outro código.`,
+      code: 'RATE_LIMIT_EMAIL',
+      retryAfter: cd.retryAfter
+    });
   }
 
-  // Em produção nunca devolver o código. Em dev, devMode permite.
-  const isDev = process.env.NODE_ENV !== 'production' && !process.env.VERCEL;
-  res.json({ ok: true, expiresIn: 600, ...(isDev ? { devCode: code } : {}) });
+  try {
+    const { code } = await sendCode(e, purpose, { resend: true });
+    const isDev = process.env.NODE_ENV !== 'production' && !process.env.VERCEL;
+    res.json({ ok: true, expiresIn: 600, ...(isDev ? { devCode: code } : {}) });
+  } catch (err) {
+    log.error('request-code error', { error: err.message, email: e });
+    // Mesmo em erro de envio, resposta genérica não expõe detalhes
+    return res.status(502).json({
+      error: 'Erro ao enviar código. Tente novamente em instantes.',
+      code: 'SEND_FAILED'
+    });
+  }
 });
 
 router.post('/verify-code', verifyCodeLimiter, async (req, res) => {
@@ -260,18 +234,38 @@ router.post('/verify-email', verifyCodeLimiter, async (req, res) => {
   res.json({ user: sanitizeUser(fresh), token, emailVerified: true });
 });
 
-// Reenvia code de verificação (com cooldown 60s, idempotente)
+// Reenvia code de verificação (com cooldown, anti-spam)
 router.post('/resend-verification', codeLimiter, async (req, res) => {
   const { email } = req.body || {};
   if (!email) return res.status(400).json({ error: 'Informe o e-mail' });
   if (!isValidEmail(email)) return res.status(400).json({ error: 'E-mail inválido' });
   const e = email.toLowerCase().trim();
+
   // Resposta genérica (mesma para user existente ou não — anti-enumeração)
   const user = await get('SELECT * FROM users WHERE email = ?', [e]);
-  if (user && !user.email_verified) {
-    await sendVerifyCode(user);
+  if (!user || user.email_verified) {
+    return res.json({ ok: true });
   }
-  res.json({ ok: true });
+
+  const cd = await getCodeCooldown(e, 'verify');
+  if (cd.active) {
+    return res.status(429).json({
+      error: `Aguarde ${cd.retryAfter}s antes de reenviar.`,
+      code: 'RATE_LIMIT_EMAIL',
+      retryAfter: cd.retryAfter
+    });
+  }
+
+  try {
+    await sendVerifyCode(user, { resend: true });
+    res.json({ ok: true, retryAfter: Math.ceil(CODE_EMAIL_COOLDOWN_MS / 1000) });
+  } catch (err) {
+    log.error('resend-verification error', { error: err.message, email: e });
+    return res.status(502).json({
+      error: 'Erro ao reenviar código. Tente novamente em instantes.',
+      code: 'SEND_FAILED'
+    });
+  }
 });
 
 // Cria senha para usuário NO_PASSWORD que veio de checkout guest

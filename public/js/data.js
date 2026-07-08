@@ -316,6 +316,8 @@ const DB = {
     } catch (e) {
       const out = { error: e.message || 'E-mail ou senha incorretos' };
       if (e.code) out.code = e.code;
+      if (e.data && e.data.email) out.email = e.data.email;
+      if (e.data && e.data.devCode) out.devCode = e.data.devCode;
       return out;
     }
   },
@@ -385,7 +387,8 @@ const DB = {
     return null;
   },
   async generateLoginCode(target, email) {
-    return this.requestPasswordReset(email);
+    const purpose = target === 'reset' ? 'reset' : 'login';
+    return this.requestCode(email, purpose);
   },
   async consumeLoginCode(target, email, code) {
     try {
@@ -497,11 +500,15 @@ const DB = {
       paymentMethod: data.paymentMethod || data.payment || 'pix',
       cellphone: data.cellphone || ''
     });
-    return { order: r.order, checkoutUrl: r.checkoutUrl, cardError: r.cardError };
+    return { order: r.order, pix: r.pix, checkoutUrl: r.checkoutUrl, cardError: r.cardError };
   },
   async updateOrder(id, patch) {
     if (patch.status === 'pago') {
-      const r = await api('/orders/' + id + '/confirm', { method: 'POST', body: {} });
+      const body = {
+        manualOverride: patch.manualOverride || false,
+        reason: patch.reason || ''
+      };
+      const r = await api('/orders/' + id + '/confirm', { method: 'POST', body });
       const updated = normalizeOrder(r.order);
       // Atualiza cache local (substitui o item, ou adiciona se não existir)
       const idx = cache.orders.findIndex(o => o.id === id);

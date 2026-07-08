@@ -191,9 +191,33 @@
     </div>
   </main>
 
+  <!-- Modal de QR do PIX (reaproveitado do painel) -->
+  <div class="modal" id="pixModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:2000; align-items:center; justify-content:center">
+    <div class="modal-card" style="max-width:420px; width:92%; text-align:center">
+      <div class="modal-head">
+        <h2>Pagar com Pix</h2>
+        <button id="pixCloseBtn" class="icon-btn" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--ink-3); margin-bottom:12px; font-size:0.9375rem">Pedido <code id="pixOrderId"></code> · <strong id="pixAmount" style="color:var(--ink)"></strong></p>
+        <div style="background:var(--surface); padding:12px; border-radius:10px; margin-bottom:12px">
+          <img id="pixQrImage" alt="QR Code Pix" style="max-width:220px; width:100%" />
+        </div>
+        <p style="margin:8px 0; font-size:0.8125rem; color:var(--ink-3)">Expira em <strong id="pixTimer" style="color:var(--ink)">30:00</strong></p>
+        <div style="display:flex; gap:6px; align-items:stretch; margin-top:8px">
+          <input id="pixCopyPaste" class="input" readonly style="font-family:monospace; font-size:0.75rem; flex:1" />
+          <button id="pixCopyBtn" class="btn btn-secondary" style="padding:0 12px; font-size:0.8125rem">Copiar</button>
+        </div>
+        <p style="margin-top:16px"><span id="pixStatus" class="pill warn">Aguardando pagamento…</span></p>
+        <p style="font-size:0.75rem; color:var(--ink-3); margin-top:8px">Após o pagamento, a confirmação é automática. Seus plugins serão liberados em segundos.</p>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-stack" id="toastStack"></div>
 
   <script src="js/loading.js?v=29"></script>
+  <script src="js/i18n.js?v=2"></script>
   <script src="js/data.js?v=32"></script>
   <script src="js/account.js?v=29"></script>
 </body>

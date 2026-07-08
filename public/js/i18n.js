@@ -103,13 +103,13 @@ const I18N = {
       'checkout.email_placeholder': 'voce@email.com',
       'checkout.payment': 'Forma de pagamento',
       'checkout.payment.pix': 'Pix (pagamento instantâneo)',
-      'checkout.payment.card': 'Cartão de crédito',
+      'checkout.payment.card': 'Cartão de crédito (até 12x)',
       'checkout.payment.boleto': 'Boleto',
       'checkout.affiliate': 'Código de afiliado (opcional)',
       'checkout.affiliate_placeholder': 'Ex: JOAO42',
       'checkout.confirm': 'Confirmar pagamento',
-      
-      'checkout.payment.note': 'Para cartão, você será redirecionado para o checkout seguro da AbacatePay.',
+
+      'checkout.payment.note': 'PIX transparente e cartão via checkout seguro do Mercado Pago ou AbacatePay.',
       // Payment methods
       'payment.pix.title': 'Pagar com Pix',
       'payment.pix.expires': 'Expira em',
@@ -118,8 +118,10 @@ const I18N = {
       'payment.pix.paid': 'Pago! Licença liberada.',
       'payment.pix.copy': 'Copiar código',
       'payment.pix.copied': 'Código PIX copiado',
+      'payment.pix.failed': 'Pedido criado, mas a cobrança PIX falhou. Use o link "Ver minha conta" para tentar novamente.',
       'payment.card.redirect': 'Redirecionando para pagamento com cartão...',
-      
+      'payment.card.unavailable': 'Pagamento com cartão indisponível. Tente novamente ou use PIX.',
+
       // Auth
       'auth.login': 'Entrar',
       'auth.register': 'Cadastrar',
@@ -149,8 +151,9 @@ const I18N = {
       'account.settings': 'Configurações',
       'account.no_orders': 'Você ainda não fez compras',
       'account.view_downloads': 'Ver meus downloads',
+      'account.view_pix_qr': 'Ver QR do Pix',
       'account.create_password': 'Criar senha e acessar',
-      
+
       // Toasts
       'toast.added_cart': 'Adicionado ao carrinho',
       'toast.removed_cart': 'Removido do carrinho',
@@ -265,13 +268,13 @@ const I18N = {
       'checkout.email_placeholder': 'voce@email.com',
       'checkout.payment': 'Forma de pagamento',
       'checkout.payment.pix': 'Pix (pagamento instantâneo)',
-      'checkout.payment.card': 'Cartão de crédito',
+      'checkout.payment.card': 'Cartão de crédito (até 12x)',
       'checkout.payment.boleto': 'Boleto',
       'checkout.affiliate': 'Código de afiliado (opcional)',
       'checkout.affiliate_placeholder': 'Ex: JOAO42',
       'checkout.confirm': 'Confirmar pagamento',
-      'checkout.payment.note': 'Para cartão, será redirecionado para o checkout seguro da AbacatePay.',
-      
+      'checkout.payment.note': 'PIX transparente e cartão via checkout seguro do Mercado Pago ou AbacatePay.',
+
       // Payment methods
       'payment.pix.title': 'Pagar com Pix',
       'payment.pix.expires': 'Expira em',
@@ -280,11 +283,10 @@ const I18N = {
       'payment.pix.paid': 'Pago! Licença libertada.',
       'payment.pix.copy': 'Copiar código',
       'payment.pix.copied': 'Código PIX copiado',
+      'payment.pix.failed': 'Pedido criado, mas a cobrança PIX falhou. Usa a ligação "Ver a minha conta" para tentar novamente.',
       'payment.card.redirect': 'A redirecionar para pagamento com cartão...',
-      'payment.card.processing': 'A processar pagamento com cartão...',
-      'payment.card.success': 'Pagamento com cartão confirmado!',
-      'payment.card.error': 'Erro ao processar pagamento com cartão.',
-      
+      'payment.card.unavailable': 'Pagamento com cartão indisponível. Tenta novamente ou usa Pix.',
+
       // Auth
       'auth.login': 'Entrar',
       'auth.register': 'Registar',
@@ -314,8 +316,9 @@ const I18N = {
       'account.settings': 'Configurações',
       'account.no_orders': 'Ainda não fez compras',
       'account.view_downloads': 'Ver as minhas transferências',
+      'account.view_pix_qr': 'Ver QR do Pix',
       'account.create_password': 'Criar palavra-passe e aceder',
-      
+
       // Toasts
       'toast.added_cart': 'Adicionado ao carrinho',
       'toast.removed_cart': 'Removido do carrinho',
@@ -430,13 +433,13 @@ const I18N = {
       'checkout.email_placeholder': 'you@email.com',
       'checkout.payment': 'Payment method',
       'checkout.payment.pix': 'Pix (instant payment)',
-      'checkout.payment.card': 'Credit card',
+      'checkout.payment.card': 'Credit card (up to 12x)',
       'checkout.payment.boleto': 'Boleto',
       'checkout.affiliate': 'Affiliate code (optional)',
       'checkout.affiliate_placeholder': 'Ex: JOAO42',
       'checkout.confirm': 'Confirm payment',
-      'checkout.payment.note': 'For credit card, you will be redirected to secure AbacatePay checkout.',
-      
+      'checkout.payment.note': 'Transparent Pix and credit card via secure Mercado Pago or AbacatePay checkout.',
+
       // Payment methods
       'payment.pix.title': 'Pay with Pix',
       'payment.pix.expires': 'Expires in',
@@ -445,11 +448,10 @@ const I18N = {
       'payment.pix.paid': 'Paid! License unlocked.',
       'payment.pix.copy': 'Copy code',
       'payment.pix.copied': 'PIX code copied',
+      'payment.pix.failed': 'Order created, but the PIX charge failed. Use the "View my account" link to try again.',
       'payment.card.redirect': 'Redirecting to credit card payment...',
-      'payment.card.processing': 'Processing credit card payment...',
-      'payment.card.success': 'Credit card payment confirmed!',
-      'payment.card.error': 'Error processing credit card payment.',
-      
+      'payment.card.unavailable': 'Credit card payment unavailable. Try again or use Pix.',
+
       // Auth
       'auth.login': 'Sign In',
       'auth.register': 'Sign Up',
@@ -479,8 +481,9 @@ const I18N = {
       'account.settings': 'Settings',
       'account.no_orders': 'You haven\'t made any purchases yet',
       'account.view_downloads': 'View my downloads',
+      'account.view_pix_qr': 'View Pix QR',
       'account.create_password': 'Create password and access',
-      
+
       // Toasts
       'toast.added_cart': 'Added to cart',
       'toast.removed_cart': 'Removed from cart',
@@ -595,13 +598,13 @@ const I18N = {
       'checkout.email_placeholder': 'tu@email.com',
       'checkout.payment': 'Método de pago',
       'checkout.payment.pix': 'Pix (pago instantáneo)',
-      'checkout.payment.card': 'Tarjeta de crédito',
+      'checkout.payment.card': 'Tarjeta de crédito (hasta 12x)',
       'checkout.payment.boleto': 'Boleto',
       'checkout.affiliate': 'Código de afiliado (opcional)',
       'checkout.affiliate_placeholder': 'Ej: JOAO42',
       'checkout.confirm': 'Confirmar pago',
-      'checkout.payment.note': 'Para tarjeta, serás redirigido al checkout seguro de AbacatePay.',
-      
+      'checkout.payment.note': 'Pix transparente y tarjeta vía checkout seguro de Mercado Pago o AbacatePay.',
+
       // Payment methods
       'payment.pix.title': 'Pagar con Pix',
       'payment.pix.expires': 'Expira en',
@@ -610,11 +613,10 @@ const I18N = {
       'payment.pix.paid': '¡Pagado! Licencia desbloqueada.',
       'payment.pix.copy': 'Copiar código',
       'payment.pix.copied': 'Código PIX copiado',
+      'payment.pix.failed': 'Pedido creado, pero el cobro de Pix falló. Usa el enlace "Ver mi cuenta" para intentar de nuevo.',
       'payment.card.redirect': 'Redirigiendo al pago con tarjeta...',
-      'payment.card.processing': 'Procesando pago con tarjeta...',
-      'payment.card.success': '¡Pago con tarjeta confirmado!',
-      'payment.card.error': 'Error al procesar el pago con tarjeta.',
-      
+      'payment.card.unavailable': 'Pago con tarjeta no disponible. Inténtalo de nuevo o usa Pix.',
+
       // Auth
       'auth.login': 'Iniciar sesión',
       'auth.register': 'Registrarse',
@@ -644,8 +646,9 @@ const I18N = {
       'account.settings': 'Configuración',
       'account.no_orders': 'Aún no has hecho compras',
       'account.view_downloads': 'Ver mis descargas',
+      'account.view_pix_qr': 'Ver QR de Pix',
       'account.create_password': 'Crear contraseña y acceder',
-      
+
       // Toasts
       'toast.added_cart': 'Añadido al carrito',
       'toast.removed_cart': 'Eliminado del carrito',
