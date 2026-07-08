@@ -62,7 +62,7 @@ router.post('/register', registerLimiter, async (req, res) => {
     const tpl = verifyEmailTpl({ code, email: e });
     await sendMail({ to: e, ...tpl });
   } catch (err) {
-    console.error('Mailer error (verify):', err.message);
+    log.error('Mailer error (verify)', { error: err.message });
   }
 
   const isDev = process.env.NODE_ENV !== 'production' && !process.env.VERCEL;
