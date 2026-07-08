@@ -25,6 +25,38 @@ const OPTIONAL = [
   'NODE_ENV'
 ];
 
+// Endpoint público para verificar env vars (sem autenticação)
+// Útil para debug rápido de erro 500
+router.get('/env', (_req, res) => {
+  const envStatus = {
+    TURSO_URL: !!process.env.TURSO_URL,
+    TURSO_TOKEN: !!process.env.TURSO_TOKEN,
+    JWT_SECRET: !!process.env.JWT_SECRET,
+    ADMIN_EMAIL: !!process.env.ADMIN_EMAIL,
+    ADMIN_PASSWORD: !!process.env.ADMIN_PASSWORD,
+    APP_URL: !!process.env.APP_URL,
+    CORS_ORIGIN: !!process.env.CORS_ORIGIN,
+    NODE_ENV: process.env.NODE_ENV || 'development',
+    VERCEL: !!process.env.VERCEL
+  };
+
+  const missing = Object.entries(envStatus)
+    .filter(([key, has]) => !has && key !== 'VERCEL' && key !== 'NODE_ENV')
+    .map(([key]) => key);
+
+  res.json({
+    status: missing.length > 0 ? 'error' : 'ok',
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV || 'development',
+    vercel: !!process.env.VERCEL,
+    envStatus,
+    missing: missing.length > 0 ? missing : undefined,
+    message: missing.length > 0
+      ? `Variáveis de ambiente faltando: ${missing.join(', ')}`
+      : 'Todas as variáveis de ambiente essenciais configuradas'
+  });
+});
+
 // /diag é PROTEGIDO: requer auth admin. Não vaza mais previews de secrets.
 // Em dev (sem VERCEL), permite acesso anônimo para facilitar debug.
 router.get('/', requireAdmin, async (req, res) => {
