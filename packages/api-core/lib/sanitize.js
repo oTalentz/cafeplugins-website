@@ -103,7 +103,7 @@ export const LIMITS = {
   badge: 20,
   email: 254,
   password: 128,
-  passwordMin: 10, // MED-23: subiu de 8 para 10 chars
+  passwordMin: 12, // MED-23: mínimo 12 chars em produção
   notes: 500,
   downloadUrl: 2048,
   imageUrl: 2048,

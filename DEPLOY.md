@@ -1,100 +1,102 @@
 # Guia de Deploy no Vercel
 
-Este projeto está pronto para deploy 100% serverless no Vercel (frontend + backend em um único deploy).
+Este projeto roda 100% serverless no Vercel (frontend estático + backend em uma única Vercel Function).
 
 ## Pré-requisitos
 
-- Conta em [vercel.com](https://vercel.com) (pode logar com GitHub)
-- Repositório no GitHub: https://github.com/oTalentz/cafeplugins-website ✅
-- Variáveis de ambiente prontas (ver lista abaixo)
+- Conta em [vercel.com](https://vercel.com)
+- Repositório no GitHub: `https://github.com/oTalentz/cafeplugins-website`
+- Contas/opcionais:
+  - [Turso](https://turso.tech) para o banco SQLite
+  - [Mercado Pago](https://mercadopago.com.br) para PIX e cartão
+  - [Brevo](https://brevo.com) para e-mails transacionais
+  - [AbacatePay](https://abacatepay.com) se quiser PIX alternativo
 
 ## Passo a passo
 
 ### 1. Importar o projeto no Vercel
 
 1. Acesse [vercel.com/new](https://vercel.com/new)
-2. Clique em **"Import Git Repository"**
-3. Selecione `oTalentz/cafeplugins-website`
-4. **NÃO mude nada no formulário** — `vercel.json` já cuida de tudo:
-   - Framework: Other (detectado automaticamente)
+2. Importe `oTalentz/cafeplugins-website`
+3. **Não mude** build/output settings — `vercel.json` já configura tudo:
+   - Framework Preset: Other
    - Build Command: (vazio)
    - Output Directory: (vazio)
-5. Clique em **"Deploy"** — vai dar erro porque faltam env vars, tudo bem
+4. Deploy inicial vai falhar por falta de env vars. Isso é esperado.
 
 ### 2. Configurar variáveis de ambiente
 
-Vá em **Settings → Environment Variables** e adicione estas variáveis (Production + Preview + Development):
+Vá em **Settings → Environment Variables** e adicione (Production / Preview / Development):
 
-| Variável | Valor (exemplo) | Onde conseguir |
+| Variável | Obrigatória | Descrição |
 |---|---|---|
-| `TURSO_URL` | `libsql://cafeplugins-leocafe1.aws-us-west-2.turso.io` | Turso dashboard |
-| `TURSO_TOKEN` | `eyJ...` (JWT) | Turso dashboard → Settings → Tokens |
-| `JWT_SECRET` | (gerar com `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`) | aleatório |
-| `ADMIN_EMAIL` | `admin@cafeplugins.com` | sua escolha |
-| `ADMIN_PASSWORD` | (gerar com `node -e "console.log(require('crypto').randomBytes(12).toString('base64url'))"`) | aleatório, salve em CREDENTIALS.txt |
-| `BREVO_API_KEY` | `xkeysib-...` | Brevo dashboard → SMTP & API |
-| `BREVO_SENDER_EMAIL` | `noreply@cafeplugins.com` | remetente verificado na Brevo |
-| `BREVO_SENDER_NAME` | `cafe plugins` | nome de exibição |
-| `ABACATE_API_KEY` | `abc_prod_...` | AbacatePay dashboard |
-| `APP_URL` | `https://cafeplugins.com` | domínio final |
-| `CORS_ORIGIN` | `https://cafeplugins.com,https://www.cafeplugins.com` | domínios permitidos |
-| `ABACATE_WEBHOOK_SECRET` | (gerar com `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) | aleatório, salve em CREDENTIALS.txt |
-| `NODE_ENV` | `production` | — |
+| `TURSO_URL` | sim | URL do banco (ex: `libsql://...turso.io`) |
+| `TURSO_TOKEN` | sim | Token de acesso do Turso |
+| `JWT_SECRET` | sim | Mínimo 32 caracteres aleatórios. Gere com `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
+| `ADMIN_EMAIL` | sim | E-mail do admin padrão |
+| `ADMIN_PASSWORD` | sim | Mínimo 12 caracteres |
+| `APP_URL` | sim | Domínio final, ex: `https://cafeplugins.com` |
+| `CORS_ORIGIN` | sim | Domínios permitidos, ex: `https://cafeplugins.com,https://www.cafeplugins.com` |
+| `NODE_ENV` | sim | `production` |
+| `PAYMENT_GATEWAY` | sim | `mercadopago` (padrão) ou `abacate` |
+| `MERCADOPAGO_ACCESS_TOKEN` | se gateway=mercadopago | Access Token de produção da aplicação no Mercado Pago |
+| `MERCADOPAGO_WEBHOOK_SECRET` | recomendado | Assinatura para validar webhooks (`x-signature`) |
+| `MERCADOPAGO_SANDBOX` | não | `true` para usar `sandbox_init_point` no Checkout Pro |
+| `BREVO_API_KEY` | se enviar e-mail | Chave SMTP/API da Brevo |
+| `BREVO_SENDER_EMAIL` | se enviar e-mail | Remetente verificado na Brevo |
+| `BREVO_SENDER_NAME` | se enviar e-mail | Nome do remetente |
+| `ABACATE_API_KEY` | se gateway=abacate | Chave da AbacatePay |
+| `ABACATE_WEBHOOK_SECRET` | se usar AbacatePay | HMAC-SHA256 do body via header `x-webhook-signature` |
+
+> Nunca salve credenciais em arquivos que possam ser commitados. O `.env` real fica apenas localmente; em produção use o painel da Vercel.
 
 ### 3. Redeploy
 
-Depois de salvar as env vars, vá em **Deployments → ... → Redeploy**.
+Depois de salvar as variáveis, vá em **Deployments → ... → Redeploy**.
 
-Verifique os logs:
-- Deve aparecer `bootstrap OK`
-- Acesse `https://seu-projeto.vercel.app/api/health` → `{"ok": true}`
-- Acesse `https://seu-projeto.vercel.app/` → deve carregar a loja
+Verifique se a saúde está OK:
+- `https://cafeplugins.com/api/health` deve retornar `{"ok":true}`
+- `https://cafeplugins.com/` deve carregar a loja
+- Login de admin e buyer devem funcionar
+- Checkout gera QR (PIX) ou checkout URL (cartão)
 
-### 4. Configurar webhook do AbacatePay
+### 4. Configurar domínio customizado
 
-No dashboard do AbacatePay (https://app.abacatepay.com):
-- Transacional → Webhooks → Criar
-- Versão: **v1**
-- Nome: `cafeplugins-prod`
-- URL: `https://cafeplugins.com/api/orders/webhook` (autenticação via header `x-webhook-signature` = HMAC-SHA256(body, secret))
-- Eventos: marcar **billing.paid**
-- Salvar
+Vercel → Settings → Domains → adicione `cafeplugins.com` e `www.cafeplugins.com`.
 
-### 5. Domínio customizado
+Configure os registros DNS informados (geralmente um `A` e um `CNAME` para `www`).
 
-Vercel → Settings → Domains → adicionar `cafeplugins.com` e `www.cafeplugins.com`.
+### 5. Configurar webhooks
 
-Vercel vai mostrar os registros DNS para configurar na Hostinger (A + CNAME).
+#### Mercado Pago
 
-Depois de propagar DNS (até 48h), atualizar env var:
-- `APP_URL` = `https://cafeplugins.com`
-- `CORS_ORIGIN` = `https://cafeplugins.com,https://www.cafeplugins.com`
+1. No painel do Mercado Pago, vá em **Aplicações → Webhooks**
+2. URL: `https://cafeplugins.com/api/orders/webhook/mercadopago`
+3. Eventos: **Order (Mercado Pago)**. Também pode ativar **Pagamentos** se usar Checkout Pro legado.
+4. Ative a assinatura (`x-signature`) e copie o secret para `MERCADOPAGO_WEBHOOK_SECRET`
 
-## Cold Start e Performance
+#### AbacatePay (se usar)
 
-- Vercel serverless: ~500ms-2s de cold start na primeira requisição após inatividade
-- Bootstrap (schema + seed) roda 1x por cold start e fica cacheado em memória
-- Vercel Hobby: 10s timeout, 100 GB-hours/mês (suficiente para ~100k requests)
-- Vercel Pro: 60s timeout, 1000 GB-hours/mês
+1. Dashboard da AbacatePay → Webhooks
+2. URL: `https://cafeplugins.com/api/orders/webhook`
+3. Evento: `billing.paid`
+4. Header `x-webhook-signature` com `ABACATE_WEBHOOK_SECRET`
 
 ## Verificação pós-deploy
 
-- [ ] `https://cafeplugins.com/api/health` → `{"ok": true}`
-- [ ] `https://cafeplugins.com/` carrega a loja com 6 produtos
+- [ ] Loja carrega na URL pública
+- [ ] `/api/health` retorna `ok`
 - [ ] Login admin funciona
 - [ ] Login buyer funciona
-- [ ] Checkout PIX gera QR code real (não stub)
-- [ ] Webhook de teste funciona: `POST /api/orders/webhook` com `x-webhook-signature` válido retorna 200 ignored
-- [ ] E-mail de pagamento confirmado chega no destinatário
+- [ ] Checkout gera QR real de PIX (não stub)
+- [ ] Cartão gera URL do Mercado Pago
+- [ ] Webhook confirma pedido automaticamente
+- [ ] E-mail de confirmação chega (se Brevo configurado)
 - [ ] Link de download no e-mail funciona
-- [ ] Painel admin mostra KPIs atualizados
 
-## Custos
+## Cold Start e limites
 
-- **Vercel Hobby**: grátis (até 100 GB-h/mês)
-- **Turso Free**: 9 GB storage, 500M rows read/mês, 10M rows write/mês
-- **Brevo Free**: 300 e-mails/dia
-- **AbacatePay**: 1,5% por PIX confirmado (já descontado do valor recebido)
-- **GitHub Releases**: grátis para repos públicos
-
-**Total para 100 pedidos/mês: ~R$ 0** (só paga a % do AbacatePay sobre vendas confirmadas).
+- Vercel Hobby: 10s timeout padrão (configurado para 30s em `vercel.json` mas limitado pelo plano)
+- Vercel Pro: 60s timeout
+- Turso Free: 9 GB storage, 500M leituras/mês
+- Brevo Free: 300 e-mails/dia

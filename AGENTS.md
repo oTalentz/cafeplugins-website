@@ -25,7 +25,7 @@ ao chamar `/api/*`, mesmo com `.vercelignore` correto e `includeFiles`.
 ```json
 {
   "functions": {
-    "api/index.js": { "maxDuration": 10 }
+    "api/index.js": { "maxDuration": 30 }
   }
 }
 ```

@@ -12,7 +12,7 @@
   "scripts": {
     "start": "node api/server.js",
     "dev": "node --watch api/server.js",
-    "test": "node --test packages/api-core/tests/**/*.test.js"
+    "test": "node --test"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
