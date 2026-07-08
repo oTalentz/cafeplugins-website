@@ -136,7 +136,7 @@ $('#loginBtn').onclick = async () => {
   }
 };
 $('#passInput').onkeydown = (e) => { if (e.key === 'Enter') $('#loginBtn').click(); };
-$('#logoutBtn').onclick = () => { DB.logout(); location.reload(); };
+$('#logoutBtn').onclick = () => { DB.logout(); location.href = 'index.html'; };
 
 // Painel de verificação de e-mail (admin)
 async function showAdminVerifyEmailPanel(email, devCode) {
