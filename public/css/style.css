@@ -557,6 +557,18 @@ select.input { cursor: pointer; background-image: linear-gradient(45deg, transpa
   color: var(--ink-2);
 }
 .cart-total strong { color: var(--ink); font-size: 1.125rem; font-weight: 600; }
+.checkout-total {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.9375rem;
+  color: var(--ink-3);
+}
+.checkout-total strong {
+  color: var(--ink);
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
 .empty-state {
   text-align: center; padding: 60px 20px;
   color: var(--ink-3);
