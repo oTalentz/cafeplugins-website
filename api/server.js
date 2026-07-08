@@ -44,7 +44,9 @@ function safeStaticPath(reqPath) {
 export async function bootstrap() {
   const log = createLogger('bootstrap');
   log.info('verificando env vars...');
-  const envCheck = checkEnv(['TURSO_URL', 'TURSO_TOKEN', 'JWT_SECRET', 'BREVO_API_KEY', 'ABACATE_API_KEY', 'ABACATE_WEBHOOK_SECRET']);
+  // Apenas TURSO_URL, TURSO_TOKEN e JWT_SECRET são obrigatórias
+  // Brevo e AbacatePay são opcionais (funcionam em modo stub)
+  const envCheck = checkEnv(['TURSO_URL', 'TURSO_TOKEN', 'JWT_SECRET']);
   if (!envCheck.ok) {
     log.error('ENV vars obrigatórias faltando', { missing: envCheck.missing });
     throw new Error(`Env vars faltando: ${envCheck.missing.join(', ')}`);
@@ -55,6 +57,11 @@ export async function bootstrap() {
     log.error('JWT_SECRET ausente ou fraco. Defina um secret com pelo menos 32 chars aleatórios.');
     if (process.env.VERCEL) throw new Error('JWT_SECRET inseguro em produção');
   }
+
+  // Logar status de integrações opcionais
+  const hasBrevo = !!process.env.BREVO_API_KEY;
+  const hasAbacate = !!process.env.ABACATE_API_KEY;
+  log.info('status de integrações', { brevo: hasBrevo ? 'configurado' : 'stub mode', abacate: hasAbacate ? 'configurado' : 'manual mode' });
 
   // Em prod, exige HTTPS
   if (process.env.VERCEL && process.env.NODE_ENV !== 'production') {
