@@ -2,7 +2,8 @@ api/node_modules_old/
 api/CREDENTIALS.txt
 api/.env
 api/.env.example
-api/tests/**
+packages/api-core/tests/
+packages/api-core/node_modules/
 .DS_Store
 Thumbs.db
 *.log
@@ -13,3 +14,4 @@ node_modules/
 .idea/
 *.md
 public/seed-products.json
+.vercel

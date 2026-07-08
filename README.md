@@ -171,7 +171,7 @@ Já configurado. O schema é criado com migrations idempotentes no primeiro boot
 
 ## Cálculo de comissão (modelo LÍQUIDO)
 
-Para garantir que a loja nunca saia no prejuízo pagando afiliado, a comissão é calculada sobre o **valor líquido** (após descontar a taxa fixa do gateway e impostos). Centralizado em `api/lib/config.js` + `api/lib/fees.js`:
+Para garantir que a loja nunca saia no prejuízo pagando afiliado, a comissão é calculada sobre o **valor líquido** (após descontar a taxa fixa do gateway e impostos). Centralizado em `packages/api-core/lib/config.js` + `packages/api-core/lib/fees.js`:
 
 ```
 líquido = subtotal − gatewayFee − (subtotal × taxRate)
@@ -245,20 +245,20 @@ Similar ao Render; defina o Root Directory como raiz (não `api`).
 - **Self-referral** bloqueado (afiliado não pode usar o próprio código)
 - **Dedup de click** (1 por IP+code+24h)
 - **IP rate limit** em criação de conta (3 contas/IP/24h)
-- **Sanitização** centralizada em `api/lib/sanitize.js` (HTML escape, URL allowlist, limites por campo)
+- **Sanitização** centralizada em `packages/api-core/lib/sanitize.js` (HTML escape, URL allowlist, limites por campo)
 - **Headers**: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`
 - **Webhook secret** validado com `timingSafeEqual` (HMAC-safe)
 - **Dev creds escondidos** em produção via `IS_DEV` (localhost, *.vercel.app, ?dev=1)
 
 ## Customização
 
-- **Produtos**: edite `api/lib/seed-products.js` (roda 1x no primeiro boot)
+- **Produtos**: edite `packages/api-core/lib/seed-products.js` (roda 1x no primeiro boot)
 - **Admin padrão**: mude `ADMIN_EMAIL` / `ADMIN_PASSWORD` no `.env` antes do primeiro boot
 - **Comissão de afiliado**: 25% (default, configurável por afiliado em `users.affiliate_rate`)
-- **Modelo de comissão**: `AFFILIATE_NET_COMMISSION=true` (líquido, default) ou `false` (bruto). Configurável em `api/lib/config.js`
-- **Taxa do gateway**: `GATEWAY_FEE_FIXED=0.80` (R$ por transação PIX). Configurável em `api/lib/config.js`
-- **Impostos**: `TAX_RATE=0` (decimal, `0.06` = 6% Simples Nacional). Configurável em `api/lib/config.js`
-- **Mínimo de saque**: `MIN_PAYOUT=10` (R$). Configurável em `api/lib/config.js`
+- **Modelo de comissão**: `AFFILIATE_NET_COMMISSION=true` (líquido, default) ou `false` (bruto). Configurável em `packages/api-core/lib/config.js`
+- **Taxa do gateway**: `GATEWAY_FEE_FIXED=0.80` (R$ por transação PIX). Configurável em `packages/api-core/lib/config.js`
+- **Impostos**: `TAX_RATE=0` (decimal, `0.06` = 6% Simples Nacional). Configurável em `packages/api-core/lib/config.js`
+- **Mínimo de saque**: `MIN_PAYOUT=10` (R$). Configurável em `packages/api-core/lib/config.js`
 - **Visual**: `public/css/style.css` e `public/css/account.css`
 - **Cache-bust**: scripts em `?v=20`, `style.css?v=11`
 

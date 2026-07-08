@@ -10,24 +10,24 @@ import cors from 'cors';
 import morgan from 'morgan';
 import { existsSync } from 'node:fs';
 
-import { initSchema, get, run, all } from './lib/db.js';
-import { hashPassword } from './lib/auth.js';
-import { uid, nowISO, randomToken } from './lib/util.js';
-import { SEED_PRODUCTS } from './lib/seed-products.js';
-import { createLogger, checkEnv } from './lib/logger.js';
-import { securityHeaders } from './lib/security.js';
-import { performanceMiddleware, healthCheck, getMetrics } from './lib/monitoring.js';
-import { abacateEnabled, createAbacateProduct } from './lib/payments.js';
-import { CORS_ORIGINS } from './lib/config.js';
+import { initSchema, get, run, all } from 'api-core/lib/db.js';
+import { hashPassword } from 'api-core/lib/auth.js';
+import { uid, nowISO, randomToken } from 'api-core/lib/util.js';
+import { SEED_PRODUCTS } from 'api-core/lib/seed-products.js';
+import { createLogger, checkEnv } from 'api-core/lib/logger.js';
+import { securityHeaders } from 'api-core/lib/security.js';
+import { performanceMiddleware, healthCheck, getMetrics } from 'api-core/lib/monitoring.js';
+import { abacateEnabled, createAbacateProduct } from 'api-core/lib/payments.js';
+import { CORS_ORIGINS } from 'api-core/lib/config.js';
 
 const log = createLogger('server');
 
-import authRoutes from './routes/auth.js';
-import productsRoutes from './routes/products.js';
-import ordersRoutes from './routes/orders.js';
-import affiliatesRoutes from './routes/affiliates.js';
-import adminRoutes from './routes/admin.js';
-import diagRoutes from './routes/diag.js';
+import authRoutes from 'api-core/routes/auth.js';
+import productsRoutes from 'api-core/routes/products.js';
+import ordersRoutes from 'api-core/routes/orders.js';
+import affiliatesRoutes from 'api-core/routes/affiliates.js';
+import adminRoutes from 'api-core/routes/admin.js';
+import diagRoutes from 'api-core/routes/diag.js';
 
 const ROOT = process.env.STATIC_ROOT
   ? process.env.STATIC_ROOT

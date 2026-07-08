@@ -37,8 +37,8 @@ process.env.NODE_ENV = 'development';
 process.env.JWT_SECRET = 'test-jwt-secret-with-at-least-32-chars-aaaa';
 
 // ===== Importações dinâmicas (após mock) =====
-const { calculateBreakdown } = await import('../lib/fees.js');
-const { createCardCheckout, abacateEnabled, createAbacateProduct, verifyWebhookSignature } = await import('../lib/payments.js');
+const { calculateBreakdown } = await import('api-core/lib/fees.js');
+const { createCardCheckout, abacateEnabled, createAbacateProduct, verifyWebhookSignature } = await import('api-core/lib/payments.js');
 
 // ====================================================================
 test('abacateEnabled retorna true com ABACATE_API_KEY setada', () => {

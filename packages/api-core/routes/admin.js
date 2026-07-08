@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { get, all, run } from '../lib/db.js';
-import { requireAuth, requireAdmin, hashPassword } from '../lib/auth.js';
-import { uid, nowISO, todayISO, isValidEmail, licenseKey, randomToken } from '../lib/util.js';
-import { sanitizeIdentifier, sanitizeText as st } from '../lib/sanitize.js';
-import { sendMail, orderPaidEmail } from '../lib/mailer.js';
-import { calculateBreakdown } from '../lib/fees.js';
-import { createAbacateProduct } from '../lib/payments.js';
+import { get, all, run } from 'api-core/lib/db.js';
+import { requireAuth, requireAdmin, hashPassword } from 'api-core/lib/auth.js';
+import { uid, nowISO, todayISO, isValidEmail, licenseKey, randomToken } from 'api-core/lib/util.js';
+import { sanitizeIdentifier, sanitizeText as st } from 'api-core/lib/sanitize.js';
+import { sendMail, orderPaidEmail } from 'api-core/lib/mailer.js';
+import { calculateBreakdown } from 'api-core/lib/fees.js';
+import { createAbacateProduct } from 'api-core/lib/payments.js';
 
 const router = Router();
 
@@ -242,7 +242,7 @@ router.post('/orders', requireAdmin, async (req, res) => {
     let verified = false;
     if (paymentId) {
       try {
-        const { checkPaymentStatus } = await import('../lib/payments.js');
+        const { checkPaymentStatus } = await import('api-core/lib/payments.js');
         const pixStatus = await checkPaymentStatus(paymentId);
         if (pixStatus && (pixStatus.status === 'PAID' || pixStatus.status === 'paid' || pixStatus.status === 'CONFIRMED' || pixStatus.status === 'confirmed')) {
           verified = true;

@@ -6,7 +6,16 @@
   "engines": {
     "node": ">=18"
   },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "start": "node api/server.js",
+    "dev": "node --watch api/server.js",
+    "test": "node --test packages/api-core/tests/"
+  },
   "dependencies": {
+    "api-core": "file:./packages/api-core",
     "@libsql/client": "^0.14.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

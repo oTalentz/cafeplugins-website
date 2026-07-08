@@ -1,14 +1,14 @@
 import { Router } from 'express';
-import { get, all, run } from '../lib/db.js';
-import { requireAuth, requireAdmin, optionalAuth, getCurrentUser, extractToken } from '../lib/auth.js';
-import { createPixCharge, createCardCheckout, checkPaymentStatus, verifyWebhookSignature } from '../lib/payments.js';
-import { sendMail, orderPaidEmail } from '../lib/mailer.js';
-import { uid, licenseKey, randomToken, nowISO, todayISO, isValidEmail, generateAffCode } from '../lib/util.js';
-import { sanitizeDownloadToken, sanitizeIdentifier, sanitizeText, sanitizeUrl, LIMITS } from '../lib/sanitize.js';
-import { rateLimit, timingSafeEqual } from '../lib/security.js';
-import { calculateBreakdown } from '../lib/fees.js';
-import { createLogger } from '../lib/logger.js';
-import { PHONE_MIN_DIGITS, PHONE_MAX_DIGITS } from '../lib/config.js';
+import { get, all, run } from 'api-core/lib/db.js';
+import { requireAuth, requireAdmin, optionalAuth, getCurrentUser, extractToken } from 'api-core/lib/auth.js';
+import { createPixCharge, createCardCheckout, checkPaymentStatus, verifyWebhookSignature } from 'api-core/lib/payments.js';
+import { sendMail, orderPaidEmail } from 'api-core/lib/mailer.js';
+import { uid, licenseKey, randomToken, nowISO, todayISO, isValidEmail, generateAffCode } from 'api-core/lib/util.js';
+import { sanitizeDownloadToken, sanitizeIdentifier, sanitizeText, sanitizeUrl, LIMITS } from 'api-core/lib/sanitize.js';
+import { rateLimit, timingSafeEqual } from 'api-core/lib/security.js';
+import { calculateBreakdown } from 'api-core/lib/fees.js';
+import { createLogger } from 'api-core/lib/logger.js';
+import { PHONE_MIN_DIGITS, PHONE_MAX_DIGITS } from 'api-core/lib/config.js';
 
 const router = Router();
 const log = createLogger('orders');
@@ -134,8 +134,8 @@ router.post('/checkout', checkoutLimiter, optionalAuth, async (req, res) => {
       buyer = await get('SELECT * FROM users WHERE id = ?', [id]);
       // Envia code de verificação imediatamente
       try {
-        const { loginCode6 } = await import('../lib/util.js');
-        const { sendMail, verifyEmail: verifyEmailTpl } = await import('../lib/mailer.js');
+        const { loginCode6 } = await import('api-core/lib/util.js');
+        const { sendMail, verifyEmail: verifyEmailTpl } = await import('api-core/lib/mailer.js');
         const code = loginCode6();
         const codeId = uid('lc-');
         const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();

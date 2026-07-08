@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { get, all, run } from '../lib/db.js';
-import { hashPassword, verifyPassword, signToken, requireAuth, sanitizeUser } from '../lib/auth.js';
-import { sendMail, loginCodeEmail, verifyEmail as verifyEmailTpl } from '../lib/mailer.js';
-import { uid, loginCode6, nowISO, isValidEmail } from '../lib/util.js';
-import { sanitizeText, LIMITS } from '../lib/sanitize.js';
-import { rateLimit } from '../lib/security.js';
-import { createLogger } from '../lib/logger.js';
+import { get, all, run } from 'api-core/lib/db.js';
+import { hashPassword, verifyPassword, signToken, requireAuth, sanitizeUser } from 'api-core/lib/auth.js';
+import { sendMail, loginCodeEmail, verifyEmail as verifyEmailTpl } from 'api-core/lib/mailer.js';
+import { uid, loginCode6, nowISO, isValidEmail } from 'api-core/lib/util.js';
+import { sanitizeText, LIMITS } from 'api-core/lib/sanitize.js';
+import { rateLimit } from 'api-core/lib/security.js';
+import { createLogger } from 'api-core/lib/logger.js';
 import bcrypt from 'bcryptjs';
 
 const router = Router();

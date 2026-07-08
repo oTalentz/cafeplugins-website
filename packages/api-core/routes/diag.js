@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { envStatus, isReady, get, all } from '../lib/db.js';
-import { checkEnv, createLogger } from '../lib/logger.js';
-import { requireAdmin } from '../lib/auth.js';
+import { envStatus, isReady, get, all } from 'api-core/lib/db.js';
+import { checkEnv, createLogger } from 'api-core/lib/logger.js';
+import { requireAdmin } from 'api-core/lib/auth.js';
 
 const router = Router();
 const log = createLogger('diag');

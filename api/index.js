@@ -1,5 +1,5 @@
 import { createApp, bootstrap } from './server.js';
-import { createLogger } from './lib/logger.js';
+import { createLogger } from 'api-core/lib/logger.js';
 
 const log = createLogger('handler');
 

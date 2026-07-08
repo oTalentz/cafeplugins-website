@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { get, all, run } from '../lib/db.js';
-import { requireAdmin } from '../lib/auth.js';
-import { uid, nowISO } from '../lib/util.js';
-import { sanitizeIdentifier, sanitizeText, sanitizeUrl, LIMITS } from '../lib/sanitize.js';
-import { createAbacateProduct, deleteAbacateProduct } from '../lib/payments.js';
-import { createLogger } from '../lib/logger.js';
+import { get, all, run } from 'api-core/lib/db.js';
+import { requireAdmin } from 'api-core/lib/auth.js';
+import { uid, nowISO } from 'api-core/lib/util.js';
+import { sanitizeIdentifier, sanitizeText, sanitizeUrl, LIMITS } from 'api-core/lib/sanitize.js';
+import { createAbacateProduct, deleteAbacateProduct } from 'api-core/lib/payments.js';
+import { createLogger } from 'api-core/lib/logger.js';
 
 const router = Router();
 const log = createLogger('products');

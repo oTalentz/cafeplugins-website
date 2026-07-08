@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { get, all, run } from '../lib/db.js';
-import { requireAuth, requireAdmin } from '../lib/auth.js';
-import { uid, nowISO, generateAffCode, todayISO } from '../lib/util.js';
-import { sanitizePixKey, sanitizeText, LIMITS } from '../lib/sanitize.js';
-import { rateLimit } from '../lib/security.js';
-import { GATEWAY_FEE_FIXED, TAX_RATE, AFFILIATE_NET_COMMISSION, MIN_PAYOUT, MAX_MANUAL_COMMISSION } from '../lib/config.js';
+import { get, all, run } from 'api-core/lib/db.js';
+import { requireAuth, requireAdmin } from 'api-core/lib/auth.js';
+import { uid, nowISO, generateAffCode, todayISO } from 'api-core/lib/util.js';
+import { sanitizePixKey, sanitizeText, LIMITS } from 'api-core/lib/sanitize.js';
+import { rateLimit } from 'api-core/lib/security.js';
+import { GATEWAY_FEE_FIXED, TAX_RATE, AFFILIATE_NET_COMMISSION, MIN_PAYOUT, MAX_MANUAL_COMMISSION } from 'api-core/lib/config.js';
 
 const router = Router();
 
