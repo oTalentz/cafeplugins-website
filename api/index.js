@@ -15,9 +15,10 @@ export default async function handler(req, res) {
   const t0 = Date.now();
   try {
     if (lastError && (Date.now() - lastErrorAt) < RETRY_AFTER_MS) {
-      log.error('servindo erro de bootstrap anterior', { error: lastError });
+      log.error('servindo erro de bootstrap anterior', { error: lastError, code: lastError?.code });
       return res.status(503).json({
-        error: 'Serviço temporariamente indisponível. Tente novamente em instantes.'
+        error: 'Serviço temporariamente indisponível. Tente novamente em instantes.',
+        ...(isProd ? {} : { detail: lastError })
       });
     }
     if (lastError) {
@@ -28,10 +29,21 @@ export default async function handler(req, res) {
       appInstance = null;
     }
     if (!bootPromise) {
-      log.info('primeira request — iniciando bootstrap');
+      log.info('primeira request — iniciando bootstrap', {
+        hasTursoUrl: !!process.env.TURSO_URL,
+        hasTursoToken: !!process.env.TURSO_TOKEN,
+        hasJwtSecret: !!process.env.JWT_SECRET
+      });
       bootPromise = bootstrap().catch(err => {
-        log.error('bootstrap falhou', { error: err.message });
-        lastError = String(err.message || err);
+        log.error('bootstrap falhou', {
+          error: err.message,
+          code: err.code,
+          stack: isProd ? undefined : err.stack
+        });
+        lastError = {
+          message: String(err.message || err),
+          code: err.code
+        };
         lastErrorAt = Date.now();
         throw err;
       });
@@ -42,20 +54,28 @@ export default async function handler(req, res) {
         appInstance = await createApp();
         log.info('app pronto');
       } catch (e) {
-        log.error('falha ao criar app', { error: e.message });
+        log.error('falha ao criar app', {
+          error: e.message,
+          code: e.code,
+          stack: isProd ? undefined : e.stack
+        });
         return res.status(503).json({
           error: 'Serviço temporariamente indisponível',
-          ...(isProd ? {} : { detail: String(e.message || e) })
+          ...(isProd ? {} : { detail: String(e.message || e), code: e.code })
         });
       }
     }
     return appInstance(req, res);
   } catch (e) {
-    log.error('erro inesperado no handler', { error: e.message });
+    log.error('erro inesperado no handler', {
+      error: e.message,
+      code: e.code,
+      stack: isProd ? undefined : e.stack
+    });
     if (!res.headersSent) {
       return res.status(500).json({
         error: 'Erro interno',
-        ...(isProd ? {} : { detail: String(e.message || e) })
+        ...(isProd ? {} : { detail: String(e.message || e), code: e.code })
       });
     }
   } finally {
