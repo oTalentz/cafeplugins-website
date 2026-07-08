@@ -2,8 +2,6 @@ api/node_modules_old/
 api/CREDENTIALS.txt
 api/.env
 api/.env.example
-api/lib/**
-api/routes/**
 api/tests/**
 .DS_Store
 Thumbs.db
