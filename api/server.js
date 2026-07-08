@@ -43,6 +43,7 @@ function safeStaticPath(reqPath) {
 
 export async function bootstrap() {
   const log = createLogger('bootstrap');
+  log.info('bootstrap iniciando', { region: process.env.VERCEL_REGION || 'local', node_env: process.env.NODE_ENV });
   log.info('verificando env vars...');
   // Apenas TURSO_URL, TURSO_TOKEN e JWT_SECRET são obrigatórias
   // Brevo e AbacatePay são opcionais (funcionam em modo stub)

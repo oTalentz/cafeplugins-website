@@ -33,6 +33,7 @@
   "regions": ["pdx1"],
   "functions": {
     "api/index.js": {
+      "regions": ["pdx1"],
       "maxDuration": 30
     }
   },
