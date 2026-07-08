@@ -4,12 +4,21 @@ import { requireAdmin } from '../lib/auth.js';
 import { uid, nowISO } from '../lib/util.js';
 import { sanitizeIdentifier, sanitizeText, sanitizeUrl, LIMITS } from '../lib/sanitize.js';
 import { createAbacateProduct, deleteAbacateProduct } from '../lib/payments.js';
+import { createLogger } from '../lib/logger.js';
 
 const router = Router();
+const log = createLogger('products');
 
 router.get('/', async (req, res) => {
-  const rows = await all('SELECT * FROM products WHERE active = 1 ORDER BY name');
-  res.json({ products: rows.map(p => serialize(p, { admin: false })) });
+  try {
+    log.info('fetching products');
+    const rows = await all('SELECT * FROM products WHERE active = 1 ORDER BY name');
+    log.info('products fetched', { count: rows.length });
+    res.json({ products: rows.map(p => serialize(p, { admin: false })) });
+  } catch (err) {
+    log.error('products fetch error', { error: err.message, stack: err.stack });
+    return res.status(500).json({ error: 'Erro ao buscar produtos' });
+  }
 });
 
 router.get('/all', requireAdmin, async (req, res) => {

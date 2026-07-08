@@ -19,14 +19,23 @@ function getClient() {
   if (!process.env.TURSO_URL || !process.env.TURSO_TOKEN) {
     const err = new Error('TURSO_URL ou TURSO_TOKEN não configurados');
     err.code = 'ENV_MISSING';
-    log.error('cliente Turso não pode ser criado (env missing)');
+    log.error('cliente Turso não pode ser criado (env missing)', {
+      hasUrl: !!process.env.TURSO_URL,
+      hasToken: !!process.env.TURSO_TOKEN
+    });
     throw err;
   }
   log.info('criando cliente Turso', { url: process.env.TURSO_URL.replace(/:[^\/]*@/, ':***@') });
-  _db = createClient({
-    url: process.env.TURSO_URL,
-    authToken: process.env.TURSO_TOKEN
-  });
+  try {
+    _db = createClient({
+      url: process.env.TURSO_URL,
+      authToken: process.env.TURSO_TOKEN
+    });
+    log.info('cliente Turso criado com sucesso');
+  } catch (err) {
+    log.error('erro ao criar cliente Turso', { error: err.message, stack: err.stack });
+    throw err;
+  }
   return _db;
 }
 
