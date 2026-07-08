@@ -182,14 +182,13 @@ export async function initSchema() {
       .map(s => s.trim())
       .filter(Boolean);
     log.info(`aplicando schema (${statements.length} statements)`);
-    for (const stmt of statements) {
-      try {
-        await client.execute(stmt);
-      } catch (e) {
-        if (!/already exists/i.test(e.message || '')) {
-          log.error('falha ao executar statement', { sql: stmt.slice(0, 60), error: e.message });
-          throw e;
-        }
+    try {
+      // Aplica schema em batch para reduzir round-trips de rede no Turso
+      await client.batch(statements, 'write');
+    } catch (e) {
+      if (!/already exists/i.test(e.message || '')) {
+        log.error('falha ao aplicar schema', { error: e.message });
+        throw e;
       }
     }
     // Migrations: adicionar colunas novas se não existirem

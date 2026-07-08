@@ -32,7 +32,7 @@
   ],
   "functions": {
     "api/index.js": {
-      "maxDuration": 10
+      "maxDuration": 30
     }
   },
   "trailingSlash": false,
