@@ -760,6 +760,22 @@ const DB = {
   async resetAll() { return api('/admin/cleanup', { method: 'POST' }); },
 
   // ===========================================================
+  //  LICENSES / VALIDADOR
+  // ===========================================================
+  async getLicenseActivations(filters = {}) {
+    const qs = new URLSearchParams();
+    if (filters.pluginId) qs.set('pluginId', filters.pluginId);
+    if (filters.licenseKey) qs.set('licenseKey', filters.licenseKey);
+    return api('/license/activations?' + qs.toString());
+  },
+  async revokeLicenseActivation(id) {
+    return api('/license/activations/' + id + '/revoke', { method: 'POST' });
+  },
+  async validateLicense({ licenseKey, pluginId, serverId }) {
+    return api('/license/verify', { method: 'POST', body: { licenseKey, pluginId, serverId } });
+  },
+
+  // ===========================================================
   //  UTIL
   // ===========================================================
   // MED-09 FIX: removido hashPassword enganoso. NUNCA hasheie senha no client —

@@ -224,6 +224,7 @@ $$('#sideNav button').forEach(btn => {
     if (target) target.classList.add('active');
     if (page === 'payouts') renderPayouts();
     if (page === 'health') renderHealth();
+    if (page === 'licenses') renderLicenses();
     // Persistir a seção ativa para restaurar após reload
     try { localStorage.setItem('pixelforge_admin_active_page', page); } catch (e) {}
   };
@@ -1571,6 +1572,7 @@ function renderAll() {
   renderPayouts();
   $('#payoutBadge').textContent = DB.getPayouts().filter(p => p.status === 'pendente').length;
   $('#payoutBadge').style.display = $('#payoutBadge').textContent === '0' ? 'none' : '';
+  if ($('.page-section[data-section="licenses"].active')) renderLicenses();
   pingHealthIndicator();
 }
 
@@ -1855,3 +1857,105 @@ document.addEventListener('DOMContentLoaded', () => {
     try { localStorage.setItem('pixelforge_theme', next); } catch(e) {}
   });
 })();
+
+// ===========================================================
+//  VALIDADOR DE LICENÇAS
+// ===========================================================
+
+function renderLicensePluginFilter() {
+  const sel = $('#licenseFilterPlugin');
+  if (!sel) return;
+  const products = DB.getProducts() || [];
+  sel.innerHTML = '<option value="">Todos os plugins</option>' +
+    products.map(p => `<option value="${p.id}">${p.name} (${p.id})</option>`).join('');
+}
+
+async function renderLicenses() {
+  renderLicensePluginFilter();
+  const tbody = $('#licenseTable');
+  if (!tbody) return;
+
+  const key = ($('#licenseFilterKey')?.value || '').trim().toUpperCase();
+  const plugin = $('#licenseFilterPlugin')?.value || '';
+
+  try {
+    const r = await DB.getLicenseActivations({ licenseKey: key, pluginId: plugin });
+    const list = (r.activations || []).map(a => ({
+      ...a,
+      id: a.id,
+      licenseKey: a.license_key,
+      pluginId: a.plugin_id,
+      serverId: a.server_id,
+      ip: a.ip,
+      firstSeen: a.first_seen,
+      lastSeen: a.last_seen,
+      revoked: !!a.revoked
+    }));
+
+    if (list.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--ink-3); padding:40px">Nenhuma ativação encontrada.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = list.map(a => `
+      <tr>
+        <td><code style="font-size:0.75rem">${a.licenseKey}</code></td>
+        <td><code style="font-size:0.75rem">${a.pluginId}</code></td>
+        <td><code style="font-size:0.75rem">${a.serverId}</code></td>
+        <td>${a.ip || '—'}</td>
+        <td>${a.firstSeen ? new Date(a.firstSeen).toLocaleString('pt-BR') : '—'}</td>
+        <td>${a.lastSeen ? new Date(a.lastSeen).toLocaleString('pt-BR') : '—'}</td>
+        <td style="text-align:right">
+          <button class="btn btn-danger" data-revoke-license="${a.id}" ${a.revoked ? 'disabled' : ''}>${a.revoked ? 'Revogado' : 'Revogar'}</button>
+        </td>
+      </tr>
+    `).join('');
+
+    $$('[data-revoke-license]').forEach(b => {
+      if (b.disabled) return;
+      b.onclick = async () => {
+        if (!confirm('Revogar esta ativação? O servidor precisará validar a licença novamente.')) return;
+        try {
+          const end = Loading.buttonStart(b, 'Revogando…');
+          await DB.revokeLicenseActivation(b.dataset.revokeLicense);
+          end();
+          toast('Ativação revogada', true);
+          renderLicenses();
+        } catch (err) {
+          toast(err.message || 'Erro ao revogar', false);
+        }
+      };
+    });
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--danger); padding:40px">Erro ao carregar: ${err.message}</td></tr>`;
+  }
+}
+
+function setupLicenseValidator() {
+  const checkBtn = $('#licenseCheckBtn');
+  const searchBtn = $('#licenseSearchBtn');
+  if (checkBtn) {
+    checkBtn.onclick = async () => {
+      const result = $('#licenseCheckResult');
+      result.style.color = 'var(--ink-3)';
+      result.textContent = 'Validando…';
+      try {
+        const r = await DB.validateLicense({
+          licenseKey: ($('#licenseCheckKey').value || '').trim().toUpperCase(),
+          pluginId: ($('#licenseCheckPlugin').value || '').trim(),
+          serverId: ($('#licenseCheckServer').value || '').trim()
+        });
+        result.style.color = 'var(--success)';
+        result.innerHTML = `Licença válida. Token expira em: ${r.expiresIn || '—'}`;
+      } catch (err) {
+        result.style.color = 'var(--danger)';
+        result.textContent = err.message || 'Licença inválida';
+      }
+    };
+  }
+  if (searchBtn) {
+    searchBtn.onclick = () => renderLicenses();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', setupLicenseValidator);

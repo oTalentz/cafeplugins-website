@@ -112,6 +112,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           Configurações
         </button>
+        <button data-page="licenses" id="navLicensesBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+          Licenças
+        </button>
         <button data-page="health" id="navHealthBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
           API Health
@@ -364,6 +368,52 @@
           <div class="panel-body">
             <p style="color:var(--ink-3); font-size:0.9375rem">cafe · admin — feito para lojas de plugins de Minecraft.</p>
             <p style="color:var(--ink-3); font-size:0.9375rem; margin-top:8px">Senha padrão de demo: <code style="background:var(--bg-subtle); padding:2px 6px; border-radius:4px; color:var(--ink)">admin123</code></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====== LICENÇAS ====== -->
+      <section class="page-section" data-section="licenses">
+        <div class="page-head">
+          <div>
+            <h1>Validador de Licenças</h1>
+            <p>Consulte e revogue ativações de plugins.</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head" style="align-items:flex-start; flex-direction:column; gap:12px">
+            <h2>Validar uma licença</h2>
+            <div style="display:flex; gap:8px; width:100%; max-width:720px; flex-wrap:wrap">
+              <input type="text" id="licenseCheckKey" class="input" placeholder="PF-XXXX-XXXX-XXXX" style="flex:1" />
+              <input type="text" id="licenseCheckPlugin" class="input" placeholder="ID do plugin (ex: pf-001)" style="flex:1" />
+              <input type="text" id="licenseCheckServer" class="input" placeholder="server-id" style="flex:1" />
+              <button class="btn btn-primary" id="licenseCheckBtn">Validar</button>
+            </div>
+            <div id="licenseCheckResult" style="font-size:0.875rem; color:var(--ink-3); min-height:24px"></div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:20px">
+          <div class="panel-head" style="align-items:flex-start; flex-direction:column; gap:12px">
+            <h2>Ativações</h2>
+            <div style="display:flex; gap:8px; width:100%; max-width:720px; flex-wrap:wrap">
+              <input type="text" id="licenseFilterKey" class="input" placeholder="Filtrar por licença" style="flex:1" />
+              <select id="licenseFilterPlugin" class="input" style="flex:1">
+                <option value="">Todos os plugins</option>
+              </select>
+              <button class="btn btn-secondary" id="licenseSearchBtn">Buscar</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Licença</th><th>Plugin</th><th>Server ID</th><th>IP</th><th>First seen</th><th>Last seen</th><th style="text-align:right">Ações</th></tr>
+              </thead>
+              <tbody id="licenseTable">
+                <tr><td colspan="7" style="text-align:center; color:var(--ink-3); padding:40px">Clique em buscar para listar ativações.</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
