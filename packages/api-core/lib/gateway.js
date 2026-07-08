@@ -16,7 +16,9 @@ import {
 import {
   createPixCharge as createMercadoPagoPix,
   createCardCheckout as createMercadoPagoCard,
+  getOrder as getMercadoPagoOrder,
   getPayment as getMercadoPagoPayment,
+  searchOrderByExternalReference as searchMercadoPagoOrder,
   searchPaymentByExternalReference,
   isPaidStatus,
   mercadoPagoEnabled,
@@ -51,7 +53,7 @@ export async function createPixCharge(args) {
   if (g === 'abacate') return createAbacatePix(args);
   return {
     stub: true,
-    pixQrCode: process.env.MANUAL_PIX_KEY || '0000000000000000000000000000000000000000000000000000000000000000',
+    pixQrCode: process.env.MANUAL_PIX_KEY || '0'.repeat(64),
     pixQrImage: null,
     method: 'manual',
     message: 'Pagamento manual (gateway não configurado). Pague via PIX e aguarde a confirmação do admin.'
@@ -68,26 +70,39 @@ export async function createCardCheckout(args) {
 export async function checkPaymentStatus(paymentId, orderId) {
   const g = paymentGateway();
   if (g === 'mercadopago') {
-    let payment = null;
+    let result = null;
     if (paymentId) {
-      payment = await getMercadoPagoPayment(paymentId).catch(e => {
-        log.warn('MP get payment failed', { paymentId, error: e.message });
+      // Tenta como Orders API (ORD...) ou legacy payment id
+      result = await getMercadoPagoOrder(paymentId).catch(e => {
+        log.warn('MP get order failed', { paymentId, error: e.message });
         return null;
       });
+      if (!result) {
+        result = await getMercadoPagoPayment(paymentId).catch(e => {
+          log.warn('MP get payment failed', { paymentId, error: e.message });
+          return null;
+        });
+      }
     }
-    if (!payment && orderId) {
-      payment = await searchPaymentByExternalReference(orderId).catch(e => {
-        log.warn('MP search payment failed', { orderId, error: e.message });
+    if (!result && orderId) {
+      result = await searchMercadoPagoOrder(orderId).catch(e => {
+        log.warn('MP search order failed', { orderId, error: e.message });
         return null;
       });
+      if (!result) {
+        result = await searchPaymentByExternalReference(orderId).catch(e => {
+          log.warn('MP search payment failed', { orderId, error: e.message });
+          return null;
+        });
+      }
     }
-    if (!payment) return null;
+    if (!result) return null;
     return {
-      id: payment.id,
-      status: payment.status,
-      status_detail: payment.status_detail,
-      external_reference: payment.external_reference,
-      paid: isPaidStatus(payment.status, payment.status_detail)
+      id: result.id,
+      status: result.status,
+      status_detail: result.status_detail,
+      external_reference: result.external_reference,
+      paid: isPaidStatus(result.status, result.status_detail)
     };
   }
   if (g === 'abacate') {

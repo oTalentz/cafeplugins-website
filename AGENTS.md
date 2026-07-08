@@ -42,7 +42,7 @@ npm install
 node api/server.js
 
 # Testes
-node --test packages/api-core/tests/**/*.test.js
+node --test
 ```
 
 ## Variáveis de ambiente obrigatórias

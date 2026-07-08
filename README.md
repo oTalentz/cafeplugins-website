@@ -60,6 +60,7 @@ A primeira execução cria as tabelas (com migrations idempotentes), o admin e o
 | `MERCADOPAGO_ACCESS_TOKEN` | ❌ | Access token de produção/teste do Mercado Pago. Sem isso cai no stub. |
 | `MERCADOPAGO_WEBHOOK_SECRET` | ❌ | Secret para validar assinatura dos webhooks (`x-signature`) do Mercado Pago. |
 | `MERCADOPAGO_URL` | ❌ | Default: `https://api.mercadopago.com` |
+| `MERCADOPAGO_SANDBOX` | ❌ | `true` para usar URLs de teste do Checkout Pro (`sandbox_init_point`). Útil para contas de teste do Mercado Pago. |
 | `ABACATE_API_KEY` | ❌ | Sem isso, PIX vira **stub** (QR fake) |
 | `ABACATE_URL` | ❌ | Default: `https://api.abacatepay.com/v2` |
 | `ABACATE_WEBHOOK_SECRET` | ❌ | HMAC-SHA256 do body via header `x-webhook-signature` (recomendado). Fallback: header `X-Webhook-Secret`. |
@@ -96,7 +97,8 @@ A primeira execução cria as tabelas (com migrations idempotentes), o admin e o
 
 ### Pedidos (`/api/orders/*`)
 - `POST /checkout` — `{ name, email, items, affiliateCode?, paymentMethod? }` → cria pedido + PIX/cartão + cookie 30d do afiliado. Retorna `breakdown` com `subtotal/gatewayFee/netAmount/commission/commissionRate/storeKeeps`, além de `checkoutUrl` (cartão), `pixQrCode`, `pixQrImage` e `pixExpiresAt` (PIX) quando aplicável
-- `POST /webhook` — webhook do gateway ativo: AbacatePay (`billing.paid` / `checkout.completed`) ou Mercado Pago (`payment.created`, `payment.updated`, assinatura `x-signature`)
+- `POST /webhook` — webhook do gateway ativo: AbacatePay (`billing.paid` / `checkout.completed`)
+- `POST /webhook/mercadopago` — webhook do Mercado Pago: evento `order` (Orders API, recomendado) ou `payment` (Checkout Pro legado), validação de assinatura `x-signature`
 - `POST /:id/confirm` — confirma manual (admin)
 - `PATCH /:id` — atualiza status (admin, transições validadas)
 - `GET  /me` — meus pedidos (auth)
@@ -151,10 +153,11 @@ Já configurado. O schema é criado com migrations idempotentes no primeiro boot
 ### 3. Mercado Pago (recomendado — PIX transparente + cartão)
 - Crie conta em [mercadopago.com.br](https://www.mercadopago.com.br) e ative **credenciais de produção** (ou de teste)
 - Em **Desenvolvedor → Credenciais**, copie o `Access Token` para `MERCADOPAGO_ACCESS_TOKEN`
-- Em **Aplicações → Webhooks**, adicione a URL pública: `https://cafeplugins.com/api/orders/webhook` e ative eventos `payment` (`payment.created`, `payment.updated`)
-- Configure a assinatura (`x-signature`) no webhook e defina `MERCADOPAGO_WEBHOOK_SECRET` no `.env` para validação
+- Em **Aplicações → Webhooks**, adicione a URL pública: `https://cafeplugins.com/api/orders/webhook/mercadopago` e ative o evento **Order (Mercado Pago)**. O evento `payment` também é aceito se estiver usando Checkout Pro.
+- Configure a assinatura (`x-signature`) no webhook e defina `MERCADOPAGO_WEBHOOK_SECRET` no `.env` para validação (em dev a assinatura é opcional)
 - Defina `PAYMENT_GATEWAY=mercadopago` (ou deixe em branco — a loja prefere Mercado Pago quando `MERCADOPAGO_ACCESS_TOKEN` está presente)
-- Para PIX transparente: o cliente vê o QR code gerado por `/v1/orders` diretamente no modal
+- Para testar com contas de teste do Mercado Pago, defina `MERCADOPAGO_SANDBOX=true` para usar `sandbox_init_point` no checkout de cartão
+- Para PIX transparente: o cliente vê o QR code gerado pela Orders API (`/v1/orders`) diretamente no modal
 - Para cartão: o redirecionamento abre o checkout seguro do Mercado Pago (`/checkout/preferences`)
 
 ### 4. AbacatePay (PIX — alternativa)
@@ -232,6 +235,7 @@ loja fica = subtotal − gatewayFee − (subtotal × taxRate) − comissão
    - `BREVO_SENDER_NAME` (ex: `cafe plugins`)
    - `MERCADOPAGO_ACCESS_TOKEN`
    - `MERCADOPAGO_WEBHOOK_SECRET`
+   - `MERCADOPAGO_SANDBOX` (`true` se usar contas de teste)
    - `PAYMENT_GATEWAY` (`mercadopago` ou `abacate`)
    - `ABACATE_API_KEY` (só se forçar gateway abacate)
    - `ABACATE_WEBHOOK_SECRET` (só se usar AbacatePay)

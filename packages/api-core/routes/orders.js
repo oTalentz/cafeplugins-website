@@ -354,9 +354,10 @@ router.post('/webhook', webhookLimiter, async (req, res) => {
 });
 
 // Webhook do Mercado Pago
-// Notificações do tipo payment enviam data.id por query string e no body.
+// Notificações de "order" (Checkout API Orders) enviam o ID da ordem em data.id.
+// Notificações de "payment" (Checkout Pro / legacy) enviam o ID do pagamento.
 // Validação de assinatura via header x-signature (se MERCADOPAGO_WEBHOOK_SECRET estiver configurado).
-// IMPORTANTE: notificações de QR Code NÃO podem ser validadas por secret, segundo docs do MP.
+// IMPORTANTE: em dev a assinatura é opcional; em produção é obrigatória.
 router.post('/webhook/mercadopago', webhookLimiter, async (req, res) => {
   const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
   const xSignature = req.headers['x-signature'];
@@ -381,7 +382,7 @@ router.post('/webhook/mercadopago', webhookLimiter, async (req, res) => {
   log.info('MP webhook recebido', { topic, dataId });
 
   // Acessa a notificação por query ou body
-  if (topic && topic !== 'payment') {
+  if (topic && !['payment', 'order'].includes(topic)) {
     return res.status(200).json({ ok: true, ignored: true, topic });
   }
 

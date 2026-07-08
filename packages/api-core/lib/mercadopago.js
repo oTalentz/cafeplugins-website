@@ -1,15 +1,15 @@
 // =====================================================
 //  Integração Mercado Pago
-//  - PIX transparente via /v1/payments (payment_method_id: 'pix')
+//  - PIX transparente via /v1/orders (Checkout API Orders)
 //  - Cartão via Checkout Pro (/checkout/preferences)
-//  - Consulta de pagamento e validação de webhook
+//  - Consulta de ordem/pagamento e validação de webhook
 //
 //  Requer MERCADOPAGO_ACCESS_TOKEN. Modo stub (manual) quando ausente.
 // =====================================================
 
 import { randomUUID, createHmac, timingSafeEqual } from 'node:crypto';
 import { createLogger } from './logger.js';
-import { MERCADOPAGO_URL, MERCADOPAGO_TIMEOUT_MS, APP_URL } from './config.js';
+import { MERCADOPAGO_URL, MERCADOPAGO_TIMEOUT_MS, MERCADOPAGO_SANDBOX, APP_URL } from './config.js';
 
 const log = createLogger('mercadopago');
 
@@ -42,17 +42,17 @@ function parsePhone(raw) {
   const digits = String(raw || '').replace(/\D/g, '');
   const len = digits.length;
   if (len < 10 || len > 11) return null;
-  const dddLen = len === 11 ? 2 : 2;
+  const dddLen = 2;
   return { area_code: digits.slice(0, dddLen), number: digits.slice(dddLen) };
 }
 
-// Mercado Pago exige items com unit_price e currency_id.
+// Items para Checkout Pro (preferences)
 function toPreferenceItems(orderItems) {
   return (orderItems || []).map(i => ({
     id: String(i.id).slice(0, 256),
     title: truncate(i.name || 'Produto', 100),
     description: truncate(i.name || 'Produto', 256),
-    picture_url: '',
+    picture_url: i.pictureUrl || i.image || '',
     category_id: 'games',
     quantity: 1,
     currency_id: 'BRL',
@@ -60,11 +60,41 @@ function toPreferenceItems(orderItems) {
   }));
 }
 
+// Items para Orders API (Checkout API Orders)
+function toOrderItems(orderItems) {
+  const items = (orderItems || []).map(i => {
+    const it = {
+      title: truncate(i.name || 'Produto', 100),
+      description: truncate(i.name || 'Produto', 256),
+      unit_price: formatAmount(i.price),
+      quantity: 1,
+      category_id: 'games'
+    };
+    const pic = i.pictureUrl || i.image || '';
+    if (pic) it.picture_url = pic;
+    return it;
+  });
+  if (items.length === 0) {
+    items.push({
+      title: 'Pedido',
+      unit_price: '0.00',
+      quantity: 1
+    });
+  }
+  return items;
+}
+
+function formatAmount(amount) {
+  const n = Number(amount || 0);
+  if (!isFinite(n)) return '0.00';
+  return n.toFixed(2);
+}
+
 export async function createPixCharge({ orderId, amount, description, customer }) {
   if (!mercadoPagoEnabled()) {
     return {
       stub: true,
-      pixQrCode: process.env.MANUAL_PIX_KEY || '0000000000000000000000000000000000000000000000000000000000000000',
+      pixQrCode: process.env.MANUAL_PIX_KEY || '0'.repeat(64),
       pixQrImage: null,
       method: 'manual',
       message: 'Pagamento manual (Mercado Pago não configurado). Pague via PIX e aguarde a confirmação do admin.'
@@ -75,26 +105,34 @@ export async function createPixCharge({ orderId, amount, description, customer }
   if (!isFinite(amt) || amt <= 0) throw new Error('Valor inválido');
 
   const notificationUrl = `${APP_URL}/api/orders/webhook/mercadopago`;
-  const dateOfExpiration = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const expirationTime = 'PT30M';
   const idempotencyKey = randomUUID();
 
   const body = {
-    transaction_amount: amt,
-    description: truncate(description || `Pedido ${String(orderId).slice(-8)}`, 256),
-    payment_method_id: 'pix',
+    type: 'online',
     external_reference: String(orderId).slice(0, 256),
-    notification_url: notificationUrl,
-    date_of_expiration: dateOfExpiration,
+    total_amount: formatAmount(amt),
+    description: truncate(description || `Pedido ${String(orderId).slice(-8)}`, 256),
+    capture_mode: 'automatic_async',
+    processing_mode: 'automatic',
     payer: {
       email: String(customer.email).slice(0, 256),
       first_name: String(customer.name || '').slice(0, 100)
     },
-    additional_info: {
-      items: toPreferenceItems(customer.items || [])
-    }
+    transactions: {
+      payments: [{
+        amount: formatAmount(amt),
+        payment_method: {
+          id: 'pix',
+          type: 'bank_transfer'
+        },
+        expiration_time: expirationTime
+      }]
+    },
+    items: toOrderItems(customer.items || [])
   };
 
-  const r = await fetchWithTimeout(`${MERCADOPAGO_URL}/v1/payments`, {
+  const r = await fetchWithTimeout(`${MERCADOPAGO_URL}/v1/orders`, {
     method: 'POST',
     headers: mpHeaders(idempotencyKey),
     body: JSON.stringify(body)
@@ -104,12 +142,13 @@ export async function createPixCharge({ orderId, amount, description, customer }
   let resp;
   try { resp = JSON.parse(text); } catch { throw new Error(`Mercado Pago ${r.status}: resposta inválida`); }
 
-  if (!r.ok || resp.error) {
-    log.error('Mercado Pago PIX error', { status: r.status, error: resp?.message || resp?.error || 'sem mensagem' });
+  if (!r.ok || resp.errors || resp.error) {
+    log.error('Mercado Pago PIX error', { status: r.status, error: resp?.message || resp?.errors || resp?.error || 'sem mensagem' });
     throw new Error(`Pagamento indisponível no momento (${r.status})`);
   }
 
-  const pixData = resp.point_of_interaction?.transaction_data || {};
+  const payment = resp.transactions?.payments?.[0] || {};
+  const pixData = payment.payment_method || {};
   const qrCode = pixData.qr_code ? String(pixData.qr_code).slice(0, 2048) : null;
   const qrBase64 = pixData.qr_code_base64 ? String(pixData.qr_code_base64).slice(0, 200000) : null;
   const qrImage = qrBase64 && !qrBase64.startsWith('data:') ? `data:image/png;base64,${qrBase64}` : qrBase64;
@@ -124,7 +163,7 @@ export async function createPixCharge({ orderId, amount, description, customer }
     method: 'pix',
     status: resp.status,
     statusDetail: resp.status_detail,
-    expiresAt: resp.date_of_expiration
+    expiresAt: payment.date_of_expiration
   };
 }
 
@@ -189,7 +228,10 @@ export async function createCardCheckout({ orderId, amount, description, custome
     throw new Error(`Checkout indisponível no momento (${r.status})`);
   }
 
-  const checkoutUrl = resp.init_point || resp.sandbox_init_point || null;
+  const useSandbox = MERCADOPAGO_SANDBOX || (!process.env.VERCEL && process.env.NODE_ENV !== 'production');
+  const checkoutUrl = useSandbox
+    ? (resp.sandbox_init_point || resp.init_point || null)
+    : (resp.init_point || resp.sandbox_init_point || null);
   if (!checkoutUrl) {
     log.error('Mercado Pago checkout: sem init_point', { dataKeys: Object.keys(resp) });
     return null;
@@ -202,13 +244,68 @@ export async function createCardCheckout({ orderId, amount, description, custome
   };
 }
 
+// --- Consulta de ordem/pagamento ---
+
+function normalizeOrderOrPayment(raw) {
+  if (!raw) return null;
+  // Orders API
+  if (raw.type === 'online' || raw.type === 'qr' || raw.transactions) {
+    const payment = raw.transactions?.payments?.[0] || {};
+    return {
+      id: raw.id,
+      status: raw.status,
+      status_detail: raw.status_detail,
+      external_reference: raw.external_reference,
+      paid: isPaidStatus(raw.status, raw.status_detail)
+    };
+  }
+  // Legacy Payments API
+  return {
+    id: raw.id,
+    status: raw.status,
+    status_detail: raw.status_detail,
+    external_reference: raw.external_reference,
+    paid: isPaidStatus(raw.status, raw.status_detail)
+  };
+}
+
+export async function getOrder(orderId) {
+  if (!mercadoPagoEnabled() || !orderId) return null;
+  const r = await fetchWithTimeout(`${MERCADOPAGO_URL}/v1/orders/${encodeURIComponent(orderId)}`, {
+    headers: { 'Authorization': `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` }
+  });
+  if (!r.ok) return null;
+  return normalizeOrderOrPayment(await r.json());
+}
+
 export async function getPayment(paymentId) {
   if (!mercadoPagoEnabled() || !paymentId) return null;
   const r = await fetchWithTimeout(`${MERCADOPAGO_URL}/v1/payments/${encodeURIComponent(paymentId)}`, {
     headers: { 'Authorization': `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` }
   });
   if (!r.ok) return null;
-  return r.json();
+  return normalizeOrderOrPayment(await r.json());
+}
+
+export async function searchOrderByExternalReference(externalReference) {
+  if (!mercadoPagoEnabled() || !externalReference) return null;
+  const end = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const begin = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const url = `${MERCADOPAGO_URL}/v1/orders?` + new URLSearchParams({
+    external_reference: String(externalReference).slice(0, 64),
+    begin_date: begin,
+    end_date: end,
+    sort_by: 'created_date',
+    sort_order: 'desc',
+    page_size: '5'
+  });
+  const r = await fetchWithTimeout(url, {
+    headers: { 'Authorization': `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` }
+  });
+  if (!r.ok) return null;
+  const resp = await r.json();
+  const results = resp?.data || [];
+  return normalizeOrderOrPayment(results[0]) || null;
 }
 
 export async function searchPaymentByExternalReference(externalReference) {
@@ -225,12 +322,12 @@ export async function searchPaymentByExternalReference(externalReference) {
   if (!r.ok) return null;
   const resp = await r.json();
   const results = resp?.results || [];
-  return results[0] || null;
+  return normalizeOrderOrPayment(results[0]) || null;
 }
 
 export function isPaidStatus(status, statusDetail) {
   const s = String(status || '').toLowerCase();
-  return s === 'approved' || s === 'authorized' || s === 'accredited' ||
+  return s === 'approved' || s === 'authorized' || s === 'accredited' || s === 'processed' ||
     (s === 'pending' && String(statusDetail || '').toLowerCase() === 'accredited');
 }
 
@@ -254,7 +351,7 @@ export function verifyWebhookSignature(xSignature, xRequestId, dataId, secret) {
     if (!ts || !v1) return false;
 
     const manifestParts = [];
-    if (dataId) manifestParts.push(`id:${String(dataId).toLowerCase()}`);
+    if (dataId) manifestParts.push(`id:${String(dataId)}`);
     if (xRequestId) manifestParts.push(`request-id:${xRequestId}`);
     if (ts) manifestParts.push(`ts:${ts}`);
     const manifest = manifestParts.join(';') + ';';
