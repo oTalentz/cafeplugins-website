@@ -47,8 +47,20 @@ Vá em **Settings → Environment Variables** e adicione (Production / Preview /
 | `BREVO_SENDER_NAME` | se enviar e-mail | Nome do remetente |
 | `ABACATE_API_KEY` | se gateway=abacate | Chave da AbacatePay |
 | `ABACATE_WEBHOOK_SECRET` | se usar AbacatePay | HMAC-SHA256 do body via header `x-webhook-signature` |
+| `LICENSE_PRIVATE_KEY` | se usar SDK de licença | Chave privada PEM RS256 para assinar tokens de licença de plugins |
+| `LICENSE_PUBLIC_KEY` | se usar SDK de licença | Chave pública PEM RS256 (vai dentro do `cafe-license.yml` do plugin) |
+| `LICENSE_TOKEN_TTL` | não | Tempo de validade do token de licença (default `7d`) |
+| `LICENSE_ACTIVATION_LIMIT` | não | Máximo de servidores ativos por licença (default `1`) |
 
 > Nunca salve credenciais em arquivos que possam ser commitados. O `.env` real fica apenas localmente; em produção use o painel da Vercel.
+
+### Gerar par de chaves para licenças
+
+```bash
+node -e "const { generateKeyPairSync } = require('crypto'); const k = generateKeyPairSync('rsa',{modulusLength:2048,privateKeyEncoding:{type:'pkcs8',format:'pem'},publicKeyEncoding:{type:'spki',format:'pem'}}); console.log('---PRIVATE---\n'+k.privateKey); console.log('---PUBLIC---\n'+k.publicKey);"
+```
+
+Guarde a `LICENSE_PRIVATE_KEY` no painel da Vercel e cole a `LICENSE_PUBLIC_KEY` no `cafe-license.yml` dentro do jar de cada plugin.
 
 ### 3. Redeploy
 
@@ -93,6 +105,7 @@ Configure os registros DNS informados (geralmente um `A` e um `CNAME` para `www`
 - [ ] Webhook confirma pedido automaticamente
 - [ ] E-mail de confirmação chega (se Brevo configurado)
 - [ ] Link de download no e-mail funciona
+- [ ] `/api/license/verify` responde corretamente para plugins com SDK
 
 ## Cold Start e limites
 

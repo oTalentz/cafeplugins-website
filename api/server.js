@@ -29,6 +29,7 @@ import ordersRoutes from 'api-core/routes/orders.js';
 import affiliatesRoutes from 'api-core/routes/affiliates.js';
 import adminRoutes from 'api-core/routes/admin.js';
 import diagRoutes from 'api-core/routes/diag.js';
+import licenseRoutes from 'api-core/routes/license.js';
 
 const ROOT = process.env.STATIC_ROOT
   ? process.env.STATIC_ROOT
@@ -244,6 +245,7 @@ export async function createApp() {
   app.use('/api/orders', ordersRoutes);
   app.use('/api/affiliates', affiliatesRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/license', licenseRoutes);
 
   app.use((err, req, res, next) => {
     const log = createLogger('express');

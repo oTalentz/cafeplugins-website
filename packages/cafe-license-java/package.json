@@ -1,0 +1,11 @@
+{
+  "name": "cafe-license-java",
+  "version": "1.0.0",
+  "description": "Java licensing SDK for cafe plugins (Maven project, not a Node package)",
+  "private": true,
+  "files": [
+    "pom.xml",
+    "src/",
+    "README.md"
+  ]
+}

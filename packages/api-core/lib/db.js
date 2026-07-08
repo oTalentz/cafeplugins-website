@@ -158,6 +158,23 @@ CREATE TABLE IF NOT EXISTS downloads_log (
 );
 CREATE INDEX IF NOT EXISTS idx_downloads_log_order_id ON downloads_log(order_id);
 
+CREATE TABLE IF NOT EXISTS activations (
+  id TEXT PRIMARY KEY,
+  license_key TEXT NOT NULL,
+  plugin_id TEXT NOT NULL,
+  server_id TEXT NOT NULL,
+  ip TEXT,
+  user_agent TEXT,
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  revoked INTEGER NOT NULL DEFAULT 0,
+  revoked_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_activations_license_key ON activations(license_key);
+CREATE INDEX IF NOT EXISTS idx_activations_server_id ON activations(server_id);
+CREATE INDEX IF NOT EXISTS idx_activations_plugin_id ON activations(plugin_id);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT
@@ -240,6 +257,33 @@ const MIGRATIONS = [
   { id: 'buyer_tax_id_orders', table: 'orders', column: 'buyer_tax_id', def: 'TEXT' },
   // Expiração do PIX transparente (Mercado Pago / AbacatePay)
   { id: 'pix_expires_at_orders', table: 'orders', column: 'pix_expires_at', def: 'TEXT' },
+  // Tabela de ativações de licença (cliente Java do plugin)
+  { id: 'activations_table', table: 'noop', column: 'noop', def: 'noop', post: async (db) => {
+    const sql = `
+      CREATE TABLE IF NOT EXISTS activations (
+        id TEXT PRIMARY KEY,
+        license_key TEXT NOT NULL,
+        plugin_id TEXT NOT NULL,
+        server_id TEXT NOT NULL,
+        ip TEXT,
+        user_agent TEXT,
+        first_seen TEXT NOT NULL,
+        last_seen TEXT NOT NULL,
+        revoked INTEGER NOT NULL DEFAULT 0,
+        revoked_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_activations_license_key ON activations(license_key);
+      CREATE INDEX IF NOT EXISTS idx_activations_server_id ON activations(server_id);
+      CREATE INDEX IF NOT EXISTS idx_activations_plugin_id ON activations(plugin_id);
+    `;
+    try {
+      for (const stmt of sql.split(';').map(s => s.trim()).filter(Boolean)) {
+        await db.execute({ sql: stmt, args: [] });
+      }
+      log.info('migration: tabela activations criada');
+    } catch (e) { log.warn('migration activations:', e.message); }
+  } },
   // Backfill: admins existentes são auto-confirmados (criados via bootstrap pelo owner)
   { id: 'backfill_admin_verified', table: 'users', column: 'noop', def: 'noop', post: async (db) => {
     // Marca todos os admins existentes como verificados (idempotente)
