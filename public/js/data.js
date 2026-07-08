@@ -476,9 +476,11 @@ const DB = {
   //  ORDERS
   // ===========================================================
   async checkout({ name, email, items, affiliateCode, paymentMethod = 'pix', cellphone }) {
+    const body = { name, email, items, affiliateCode, paymentMethod };
+    if (cellphone) body.cellphone = cellphone;
     const r = await api('/orders/checkout', {
       method: 'POST',
-      body: { name, email, items, affiliateCode, paymentMethod, cellphone }
+      body
     });
     const order = normalizeOrder(r.order);
     cache.orders.unshift(order);
@@ -498,7 +500,7 @@ const DB = {
       items,
       affiliateCode: data.affiliateCode,
       paymentMethod: data.paymentMethod || data.payment || 'pix',
-      cellphone: data.cellphone || ''
+      ...(data.cellphone ? { cellphone: data.cellphone } : {})
     });
     return { order: r.order, pix: r.pix, checkoutUrl: r.checkoutUrl, cardError: r.cardError };
   },

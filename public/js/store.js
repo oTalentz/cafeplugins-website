@@ -287,19 +287,11 @@ function closeCheckout() { $('#checkoutModal').classList.remove('open'); }
 async function confirmPurchase() {
   const name = $('#buyerName').value.trim();
   const email = $('#buyerEmail').value.trim();
-  const phoneRaw = ($('#buyerPhone')?.value || '').replace(/\D/g, '');
   const method = $('#paymentMethod').value;
   const typedCode = $('#affiliateCode').value.trim().toUpperCase();
 
   if (!name || !email) { toast('Preencha nome e e-mail', false); return; }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('E-mail inválido', false); return; }
-  // Cartão exige telefone (AbacatePay antifraude)
-  if (method === 'cartao') {
-    if (phoneRaw.length < 10 || phoneRaw.length > 11) {
-      toast('Cartão exige celular com DDD (10 ou 11 dígitos)', false);
-      return;
-    }
-  }
 
   const total = state.cart.reduce((s, i) => s + i.price, 0);
 
@@ -336,7 +328,6 @@ async function confirmPurchase() {
         buyer: { name, email },
         paymentMethod: method,
         payment: method,
-        cellphone: phoneRaw,
         items: state.cart.map(i => {
           const p = DB.getProduct(i.id);
           return { id: i.id, name: i.name, price: i.price, downloadUrl: p?.downloadUrl || '' };

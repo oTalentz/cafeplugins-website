@@ -38,14 +38,6 @@ function truncate(s, n) {
   return s.length > n ? s.slice(0, n) : s;
 }
 
-function parsePhone(raw) {
-  const digits = String(raw || '').replace(/\D/g, '');
-  const len = digits.length;
-  if (len < 10 || len > 11) return null;
-  const dddLen = 2;
-  return { area_code: digits.slice(0, dddLen), number: digits.slice(dddLen) };
-}
-
 // Items para Checkout Pro (preferences)
 function toPreferenceItems(orderItems) {
   return (orderItems || []).map(i => ({
@@ -177,9 +169,14 @@ export async function createCardCheckout({ orderId, amount, description, custome
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
   const payer = { email: String(customer.email).slice(0, 256) };
-  if (customer.name) payer.name = String(customer.name).slice(0, 100);
-  const phone = parsePhone(customer.cellphone || customer.phone || '');
-  if (phone) payer.phone = phone;
+  if (customer.name) {
+    const full = String(customer.name).trim();
+    const parts = full.split(/\s+/);
+    const firstName = parts[0] || full;
+    const surname = parts.slice(1).join(' ') || '';
+    payer.name = firstName.slice(0, 100);
+    if (surname) payer.surname = surname.slice(0, 100);
+  }
 
   const preferenceItems = toPreferenceItems(items || []);
   if (preferenceItems.length === 0) {

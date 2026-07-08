@@ -350,16 +350,11 @@
         <p style="color:var(--ink-3); margin-bottom:20px; font-size:0.9375rem" data-i18n="checkout.desc">Preencha seus dados. Após a confirmação, você receberá o link de download por e-mail.</p>
         <div class="input-group">
           <label data-i18n="checkout.name">Nome</label>
-          <input class="input" id="buyerName" data-i18n-placeholder="checkout.name_placeholder" placeholder="Seu nome" />
+          <input class="input" id="buyerName" data-i18n-placeholder="checkout.name_placeholder" placeholder="Seu nome" readonly />
         </div>
         <div class="input-group">
           <label data-i18n="checkout.email">E-mail</label>
-          <input class="input" id="buyerEmail" data-i18n-placeholder="checkout.email_placeholder" placeholder="voce@email.com" type="email" />
-        </div>
-        <div class="input-group">
-          <label data-i18n="checkout.phone">Celular (DDD + número)</label>
-          <input class="input" id="buyerPhone" data-i18n-placeholder="checkout.phone_placeholder" placeholder="11999998888" inputmode="numeric" pattern="[0-9]{10,11}" maxlength="11" />
-          <small style="color:var(--ink-3); font-size:0.75rem; margin-top:4px" data-i18n="checkout.phone_note">Necessário para pagar com cartão (antifraude).</small>
+          <input class="input" id="buyerEmail" data-i18n-placeholder="checkout.email_placeholder" placeholder="voce@email.com" type="email" readonly />
         </div>
         <div class="input-group">
           <label data-i18n="checkout.payment">Forma de pagamento</label>
