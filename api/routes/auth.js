@@ -5,9 +5,11 @@ import { sendMail, loginCodeEmail, verifyEmail as verifyEmailTpl } from '../lib/
 import { uid, loginCode6, nowISO, isValidEmail } from '../lib/util.js';
 import { sanitizeText, LIMITS } from '../lib/sanitize.js';
 import { rateLimit } from '../lib/security.js';
+import { createLogger } from '../lib/logger.js';
 import bcrypt from 'bcryptjs';
 
 const router = Router();
+const log = createLogger('auth');
 const ALLOWED_CODE_PURPOSES = new Set(['login', 'reset']);
 
 const loginLimiter = rateLimit({ scope: 'auth:login', windowMs: 60_000, max: 8, message: 'Muitas tentativas de login. Aguarde 1 minuto.' });
@@ -76,46 +78,61 @@ router.post('/register', registerLimiter, async (req, res) => {
 });
 
 router.post('/login', loginLimiter, async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email) return res.status(400).json({ error: 'Informe o e-mail' });
-  const e = email.toLowerCase().trim();
-  const user = await get('SELECT * FROM users WHERE email = ?', [e]);
+  try {
+    const { email, password } = req.body || {};
+    if (!email) return res.status(400).json({ error: 'Informe o e-mail' });
+    const e = email.toLowerCase().trim();
+    log.info('login attempt', { email: e });
+    const user = await get('SELECT * FROM users WHERE email = ?', [e]);
 
-  // CRIT-01 FIX: nunca aceitar login de NO_PASSWORD via senha. Forçar code-only.
-  // CRIT-05 FIX: não diferenciar resposta para NO_PASSWORD (mesma msg genérica)
-  if (!user) {
-    // timing equalizer: mesmo quando o email não existe, gasta o tempo de bcrypt
-    if (password) { try { bcrypt.compareSync(password, DUMMY_HASH); } catch {} }
-    return res.status(401).json({ error: 'E-mail ou senha incorretos' });
+    // CRIT-01 FIX: nunca aceitar login de NO_PASSWORD via senha. Forçar code-only.
+    // CRIT-05 FIX: não diferenciar resposta para NO_PASSWORD (mesma msg genérica)
+    if (!user) {
+      // timing equalizer: mesmo quando o email não existe, gasta o tempo de bcrypt
+      if (password) { try { bcrypt.compareSync(password, DUMMY_HASH); } catch {} }
+      log.warn('login failed: user not found', { email: e });
+      return res.status(401).json({ error: 'E-mail ou senha incorretos' });
+    }
+    if (user.affiliate_status === 'banned') {
+      // MED-30 FIX: bloqueia login de banido independente de role (admin inclusive)
+      log.warn('login failed: user banned', { email: e });
+      return res.status(403).json({ error: 'Conta banida. Fale com o suporte.' });
+    }
+    if (user.password_hash === 'NO_PASSWORD') {
+      // Resposta genérica (igual a "senha errada") para evitar enumeração de NO_PASSWORD
+      if (password) { try { bcrypt.compareSync(password, DUMMY_HASH); } catch {} }
+      log.warn('login failed: NO_PASSWORD', { email: e });
+      return res.status(401).json({
+        error: 'E-mail ou senha incorretos. Se você é novo, use o código enviado por e-mail.',
+        code: 'USE_CODE'
+      });
+    }
+    if (!password) {
+      log.warn('login failed: no password provided', { email: e });
+      return res.status(401).json({ error: 'E-mail ou senha incorretos' });
+    }
+    if (!verifyPassword(password, user.password_hash)) {
+      log.warn('login failed: invalid password', { email: e });
+      return res.status(401).json({ error: 'E-mail ou senha incorretos' });
+    }
+    // Bloqueia login se e-mail não foi verificado
+    if (!user.email_verified) {
+      // Dispara reenvio automático do code de verify (idempotente)
+      await sendVerifyCode(user);
+      log.warn('login failed: email not verified', { email: e });
+      return res.status(403).json({
+        error: 'Confirme seu e-mail para entrar. Enviamos um código de 6 dígitos.',
+        code: 'EMAIL_NOT_VERIFIED',
+        email: user.email
+      });
+    }
+    const token = signToken({ sub: user.id, role: user.role, tv: user.token_version || 0 });
+    log.info('login success', { email: e, role: user.role });
+    res.json({ user: sanitizeUser(user), token });
+  } catch (err) {
+    log.error('login error', { error: err.message, stack: err.stack });
+    return res.status(500).json({ error: 'Erro interno ao fazer login' });
   }
-  if (user.affiliate_status === 'banned') {
-    // MED-30 FIX: bloqueia login de banido independente de role (admin inclusive)
-    return res.status(403).json({ error: 'Conta banida. Fale com o suporte.' });
-  }
-  if (user.password_hash === 'NO_PASSWORD') {
-    // Resposta genérica (igual a "senha errada") para evitar enumeração de NO_PASSWORD
-    if (password) { try { bcrypt.compareSync(password, DUMMY_HASH); } catch {} }
-    return res.status(401).json({
-      error: 'E-mail ou senha incorretos. Se você é novo, use o código enviado por e-mail.',
-      code: 'USE_CODE'
-    });
-  }
-  if (!password) return res.status(401).json({ error: 'E-mail ou senha incorretos' });
-  if (!verifyPassword(password, user.password_hash)) {
-    return res.status(401).json({ error: 'E-mail ou senha incorretos' });
-  }
-  // Bloqueia login se e-mail não foi verificado
-  if (!user.email_verified) {
-    // Dispara reenvio automático do code de verify (idempotente)
-    await sendVerifyCode(user);
-    return res.status(403).json({
-      error: 'Confirme seu e-mail para entrar. Enviamos um código de 6 dígitos.',
-      code: 'EMAIL_NOT_VERIFIED',
-      email: user.email
-    });
-  }
-  const token = signToken({ sub: user.id, role: user.role, tv: user.token_version || 0 });
-  res.json({ user: sanitizeUser(user), token });
 });
 
 // Helper: gera e envia code de verificação de e-mail (idempotente)
