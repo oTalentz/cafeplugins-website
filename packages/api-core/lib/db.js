@@ -177,6 +177,25 @@ export async function initSchema() {
     const client = getClient();
     // Habilita enforcement de foreign keys (desativado por padrão no SQLite)
     await client.execute('PRAGMA foreign_keys = ON');
+
+    // Cold-start shortcut: se as tabelas principais ja existem, pula CREATE TABLE.
+    // Migrations ainda verificam/atualizam colunas novas.
+    try {
+      const check = await client.execute({
+        sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'settings'",
+        args: []
+      });
+      if (check.rows.length > 0) {
+        log.info('schema ja existe, pulando CREATE TABLE');
+        await runMigrations();
+        _initialized = true;
+        log.info('schema inicializado');
+        return;
+      }
+    } catch (e) {
+      log.warn('falha ao verificar schema existente, continuando com criacao', { error: e.message });
+    }
+
     const statements = SCHEMA_SQL
       .split(/;\s*$/m)
       .map(s => s.trim())
