@@ -35,11 +35,6 @@
       "maxDuration": 10
     }
   },
-  "include": [
-    "api/**/*",
-    "public/**/*",
-    "package.json"
-  ],
   "trailingSlash": false,
   "cleanUrls": true
 }
