@@ -78,11 +78,44 @@ node -e "const { generateKeyPairSync } = require('crypto'); const k = generateKe
 
 Configure `LICENSE_PRIVATE_KEY` no `.env` da API e cole `LICENSE_PUBLIC_KEY` no `cafe-license.yml` do plugin.
 
+## Novo: build watermarkada (anti-redistribuição)
+
+A partir desta versão, a loja gera uma build personalizada do JAR para cada compra:
+
+1. O backend baixa o JAR original e insere um arquivo `cafe-watermark.jwt` dentro do jar.
+2. O watermark é um JWT assinado com RS256 contendo `licenseKey`, `orderId`, `buyerEmail` e `productId`.
+3. O SDK valida o watermark localmente com a chave pública (`public-key` do `cafe-license.yml`).
+4. Se o watermark for inválido ou não bater com o `product-id`, o plugin é desabilitado.
+5. Se o `config.yml` não tiver `license-key`, o SDK usa a chave do watermark automaticamente.
+
+Isso permite:
+
+- rastrear de qual pedido/comprador vazou o JAR;
+- usar a build sem precisar colar a `license-key` no `config.yml`;
+- aumentar o custo para redistribuição casual.
+
+## Re-verificação periódica
+
+Para evitar que o plugin continue rodando após a revogação da licença, use:
+
+```java
+@Override
+public void onEnable() {
+    saveDefaultConfig();
+    String licenseKey = getConfig().getString("license-key", "");
+    CafeLicense.verifyAsync(this, licenseKey);
+    CafeLicense.startPeriodicCheck(this, licenseKey, 30); // revalida a cada 30 min
+}
+```
+
+Se a licença for revogada ou o token expirar, o plugin é desabilitado automaticamente.
+
 ## Limitações de segurança
 
 Qualquer DRM em Java pode ser removido se alguém decompilar e editar o jar. Esse SDK aumenta bastante o custo para pirataria casual e permite:
 
 - rastrear a ativação até o `server-id`;
+- rastrear a origem do JAR pelo `cafe-watermark.jwt`;
 - limitar quantos servidores rodam ao mesmo tempo (`LICENSE_ACTIVATION_LIMIT`);
 - revogar ativações pelo painel admin;
 - expirar tokens JWT automaticamente.

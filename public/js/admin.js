@@ -415,6 +415,7 @@ function openProductModal(id = null) {
     form.version.value = p.version;
     form.badge.value = p.badge || '';
     form.stock.value = p.stock || 999;
+    form.maxDownloads.value = p.maxDownloads || 5;
     form.features.value = (p.features || []).join('\n');
   } else {
     $('#productModalTitle').textContent = 'Novo plugin';
@@ -466,6 +467,7 @@ $('#saveProductBtn').onclick = async () => {
     version: f.version.value,
     badge: f.badge.value || null,
     stock: parseInt(f.stock.value) || 999,
+    maxDownloads: parseInt(f.maxDownloads.value) || 5,
     features: f.features.value.split('\n').map(s => s.trim()).filter(Boolean)
   };
   try {

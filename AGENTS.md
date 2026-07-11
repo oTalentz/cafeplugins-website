@@ -52,3 +52,12 @@ node --test
 - `JWT_SECRET` (>= 32 chars, diferente de `change-me-in-production`)
 
 Outras variáveis (BREVO, Mercado Pago, ABACATE, etc.) são opcionais e caem em modo stub.
+
+## Licenciamento e builds watermarkadas
+
+- `LICENSE_PRIVATE_KEY` (RS256 PEM) e `LICENSE_PUBLIC_KEY` (RS256 PEM) são usadas para
+  assinar/validar tokens de licença e o watermark embutido nos JARs.
+- O endpoint `GET /api/orders/:id/download?t=<token>` gera uma build personalizada do
+  plugin, inserindo um `cafe-watermark.jwt` assinado no JAR.
+- O SDK Java (`packages/cafe-license-java`) valida o watermark offline e pode fazer
+  re-verificação periódica via `CafeLicense.startPeriodicCheck(...)`.

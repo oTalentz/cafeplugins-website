@@ -38,15 +38,17 @@ function renderReady(order) {
     renderError('Link indisponível', 'O vendedor ainda não configurou o link de download deste plugin.');
     return;
   }
+  const product = DB.getProduct ? DB.getProduct(item.id) : null;
   const ic = (item.name || '?').charAt(0).toUpperCase();
-  const downloadCount = (order.downloads || []).length;
+  const downloadCount = order.downloadCount || (order.downloads || []).length;
+  const maxDownloads = product && product.maxDownloads ? product.maxDownloads : (order.maxDownloads || 5);
   $('#dlContent').innerHTML = `
     <div class="dl-ok-icon">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
     </div>
     <div>
       <div class="dl-title">Pronto para baixar</div>
-      <div class="dl-sub">${downloadCount === 0 ? 'Primeiro download desta compra.' : `Já baixado ${downloadCount}x. Link pessoal e intransferível.`}</div>
+      <div class="dl-sub">${downloadCount === 0 ? 'Primeiro download desta compra.' : `Baixado ${downloadCount}x de ${maxDownloads}.`}</div>
     </div>
     <div class="dl-product">
       <div class="dl-product-ic">${escHtml(ic)}</div>
@@ -59,20 +61,45 @@ function renderReady(order) {
       <span>Licença</span>
       <code>${escHtml(order.licenseKey)}</code>
     </div>
-    <a href="${escHtml(safeHref(item.downloadUrl))}" target="_blank" rel="noopener" id="dlBtn" class="btn btn-primary" style="width:100%; justify-content:center">
+    <button id="dlBtn" class="btn btn-primary" style="width:100%; justify-content:center" ${downloadCount >= maxDownloads ? 'disabled' : ''}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
       Baixar ${escHtml(item.name)}
-    </a>
+    </button>
   `;
   const btn = $('#dlBtn');
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
     const params = new URLSearchParams(location.search);
     const token = params.get('t') || order.downloadToken;
-    DB.logOrderDownload(order.id, token);
+    if (!token) return;
+    try {
+      btn.disabled = true;
+      const res = await fetch(`/api/orders/${order.id}/download?t=${encodeURIComponent(token)}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        renderError('Download bloqueado', data.error || 'Não foi possível baixar o plugin.');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const header = res.headers.get('content-disposition') || '';
+      const match = header.match(/filename="([^"]+)"/);
+      a.download = match ? match[1] : `${escHtml(item.name)}.jar`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      await DB.logOrderDownload(order.id, token);
+      renderReady(order);
+    } catch (e) {
+      renderError('Erro no download', e.message);
+    }
   });
 }
 
 (async function init() {
+  try { await DB.init(); } catch (e) { console.warn('DB.init failed:', e.message); }
   const params = new URLSearchParams(location.search);
   const token = params.get('t');
   if (!token) {

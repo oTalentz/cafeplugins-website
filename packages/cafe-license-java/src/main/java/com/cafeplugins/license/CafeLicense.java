@@ -7,10 +7,12 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
+import org.bukkit.scheduler.BukkitScheduler;
 import org.json.JSONObject;
 
 import java.io.InputStream;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPublicKey;
@@ -38,17 +40,64 @@ import java.util.logging.Level;
  * {@code /cafe-license.yml} que o desenvolvedor coloca dentro do jar.
  * Ele consulta a API, recebe um JWT assinado e valida com a chave pública.
  * Se for inválido, o plugin é desabilitado.
+ *
+ * A build baixada pelo cliente contém um watermark ({@code /cafe-watermark.jwt})
+ * assinado pelo backend. O SDK valida esse watermark localmente para garantir
+ * que o JAR não foi repassado/adulterado e para rastrear a origem em caso de vazamento.
  */
 public final class CafeLicense {
 
     private static final long CONNECT_TIMEOUT_MS = 10_000;
+    private static final long DEFAULT_REVALIDATION_MINUTES = 30;
 
     public static void verify(Plugin plugin, String licenseKey) {
+        LicenseConfig config = loadConfig(plugin);
+        String watermarkedLicense = validateWatermark(plugin, config);
+
+        // Se o config.yml não tiver license-key, usa a do watermark (build personalizada)
+        if (licenseKey == null || licenseKey.isBlank()) {
+            licenseKey = watermarkedLicense;
+        }
+
         if (licenseKey == null || licenseKey.isBlank()) {
             disableAndThrow(plugin, "license-key não configurado no config.yml");
         }
 
-        LicenseConfig config = loadConfig(plugin);
+        doVerify(plugin, config, licenseKey);
+    }
+
+    /**
+     * Verificação assíncrona. Não bloqueia o main thread no onEnable().
+     * Se a licença for inválida, o plugin é desabilitado logo em seguida.
+     */
+    public static void verifyAsync(Plugin plugin, String licenseKey) {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                verify(plugin, licenseKey);
+            } catch (LicenseException e) {
+                // disableAndThrow já desabilita o plugin; aqui só evita stack trace extra
+            }
+        });
+    }
+
+    /**
+     * Agenda re-verificação periódica da licença. Se o token expirar ou a licença
+     * for revogada, o plugin é desabilitado automaticamente.
+     */
+    public static void startPeriodicCheck(Plugin plugin, String licenseKey, long minutes) {
+        if (minutes <= 0) minutes = DEFAULT_REVALIDATION_MINUTES;
+        BukkitScheduler scheduler = Bukkit.getScheduler();
+        scheduler.runTaskTimerAsynchronously(plugin, () -> {
+            try {
+                LicenseConfig config = loadConfig(plugin);
+                doVerify(plugin, config, licenseKey);
+            } catch (Exception e) {
+                disable(plugin, "Revalidação de licença falhou: " + e.getMessage());
+            }
+        }, minutes * 60 * 20, minutes * 60 * 20); // 20 ticks = 1 segundo
+    }
+
+    private static void doVerify(Plugin plugin, LicenseConfig config, String licenseKey) {
         String serverId = ServerFingerprint.compute(plugin);
 
         JSONObject body = new JSONObject();
@@ -100,6 +149,44 @@ public final class CafeLicense {
             return LicenseConfig.load(in);
         } catch (Exception e) {
             disableAndThrow(plugin, "Erro lendo cafe-license.yml: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Valida o watermark embutido no JAR pela loja. Retorna a licenseKey contida no
+     * watermark, permitindo que builds personalizadas funcionem sem o usuário digitar
+     * manualmente a chave no config.yml.
+     */
+    private static String validateWatermark(Plugin plugin, LicenseConfig config) {
+        InputStream in = plugin.getResource("cafe-watermark.jwt");
+        if (in == null) {
+            return null;
+        }
+        try {
+            String watermark = new String(in.readAllBytes(), StandardCharsets.UTF_8).trim();
+            if (watermark.isBlank()) return null;
+
+            RSAPublicKey publicKey = parsePublicKey(config.getPublicKey());
+            Algorithm algo = Algorithm.RSA256(publicKey, null);
+
+            DecodedJWT jwt = JWT.require(algo)
+                .withIssuer("cafe-plugins")
+                .withAudience(config.getProductId())
+                .build()
+                .verify(watermark);
+
+            String productId = jwt.getClaim("productId").asString();
+            if (productId == null || !productId.equals(config.getProductId())) {
+                throw new LicenseException("Watermark não pertence a este plugin");
+            }
+
+            plugin.getLogger().info("Watermark validado: " + jwt.getClaim("buyerEmail").asString());
+            return jwt.getClaim("licenseKey").asString();
+        } catch (JWTVerificationException e) {
+            disableAndThrow(plugin, "Watermark do JAR inválido: " + e.getMessage());
+        } catch (Exception e) {
+            disableAndThrow(plugin, "Erro ao validar watermark: " + e.getMessage());
         }
         return null;
     }
@@ -167,9 +254,13 @@ public final class CafeLicense {
     }
 
     private static void disable(Plugin plugin, String reason) {
-        PluginManager pm = Bukkit.getPluginManager();
         plugin.getLogger().log(Level.SEVERE, reason);
-        pm.disablePlugin(plugin);
+        // disablePlugin deve rodar na main thread do Bukkit
+        if (Bukkit.isPrimaryThread()) {
+            Bukkit.getPluginManager().disablePlugin(plugin);
+        } else {
+            Bukkit.getScheduler().runTask(plugin, () -> Bukkit.getPluginManager().disablePlugin(plugin));
+        }
     }
 
     private static void disableAndThrow(Plugin plugin, String reason) throws LicenseException {

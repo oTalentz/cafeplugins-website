@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS products (
   video TEXT,
   image TEXT,
   download_url TEXT,
+  max_downloads INTEGER DEFAULT 5,
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT
@@ -252,6 +253,7 @@ const MIGRATIONS = [
   { id: 'deleted_at_orders', table: 'orders', column: 'deleted_at', def: 'TEXT' },
   // AbacatePay product ID (para checkout com cartão v2)
   { id: 'abacate_product_id', table: 'products', column: 'abacate_product_id', def: 'TEXT' },
+  { id: 'max_downloads_products', table: 'products', column: 'max_downloads', def: 'INTEGER DEFAULT 5' },
   // Telefone do comprador para antifraude (AbacatePay cartão)
   { id: 'buyer_cellphone_orders', table: 'orders', column: 'buyer_cellphone', def: 'TEXT' },
   { id: 'buyer_tax_id_orders', table: 'orders', column: 'buyer_tax_id', def: 'TEXT' },

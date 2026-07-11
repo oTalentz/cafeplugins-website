@@ -17,6 +17,7 @@ import { rateLimit, timingSafeEqual } from 'api-core/lib/security.js';
 import { calculateBreakdown } from 'api-core/lib/fees.js';
 import { createLogger } from 'api-core/lib/logger.js';
 import { PHONE_MIN_DIGITS, PHONE_MAX_DIGITS } from 'api-core/lib/config.js';
+import { createWatermarkedJar, filenameForDownload } from 'api-core/lib/jar-watermark.js';
 
 const router = Router();
 const log = createLogger('orders');
@@ -554,11 +555,80 @@ router.get('/:id/download-token', requireAuth, async (req, res) => {
       code: 'EMAIL_NOT_VERIFIED'
     });
   }
+  const items = JSON.parse(order.items || '[]');
+  let maxDownloads = 5;
+  try {
+    const first = items[0];
+    if (first && first.id) {
+      const product = await get('SELECT max_downloads FROM products WHERE id = ?', [first.id]);
+      if (product && product.max_downloads) maxDownloads = Number(product.max_downloads);
+    }
+  } catch {}
   res.json({
     token: order.download_token,
-    items: JSON.parse(order.items || '[]').map(i => ({ id: i.id, name: i.name, downloadUrl: i.downloadUrl })),
+    items: items.map(i => ({ id: i.id, name: i.name, downloadUrl: i.downloadUrl })),
+    maxDownloads,
     downloadUrl: `${process.env.APP_URL || 'https://cafeplugins.com'}/download.html?t=${order.download_token}`
   });
+});
+
+// Download do JAR watermarkado (público, validado pelo token)
+router.get('/:id/download', downloadLimiter, async (req, res) => {
+  const t = sanitizeDownloadToken(req.query.t || '');
+  if (!t) return res.status(400).json({ error: 'Token ausente' });
+
+  const order = await get('SELECT * FROM orders WHERE id = ?', [req.params.id]);
+  if (!order || !timingSafeEqual(order.download_token || '', t)) {
+    return res.status(403).json({ error: 'Token inválido' });
+  }
+  if (order.status !== 'pago') return res.status(402).json({ error: 'Pedido não pago' });
+  if (order.download_expires_at && order.download_expires_at < nowISO()) {
+    return res.status(410).json({ error: 'Token de download expirado. Solicite um novo na sua conta.' });
+  }
+
+  // E-mail verificado
+  if (order.user_id) {
+    const buyer = await get('SELECT email_verified FROM users WHERE id = ?', [order.user_id]);
+    if (buyer && !buyer.email_verified) {
+      return res.status(403).json({ error: 'Confirme seu e-mail para liberar o download.' });
+    }
+  }
+
+  const items = JSON.parse(order.items || '[]');
+  const item = items[0];
+  if (!item || !item.downloadUrl) {
+    return res.status(404).json({ error: 'Arquivo do plugin não configurado' });
+  }
+
+  const product = await get('SELECT * FROM products WHERE id = ?', [item.id]);
+  const maxDownloads = product && product.max_downloads ? Number(product.max_downloads) : 5;
+  let downloads = [];
+  try { downloads = JSON.parse(order.downloads || '[]'); } catch {}
+  if (downloads.length >= maxDownloads) {
+    return res.status(403).json({ error: 'Limite de downloads atingido para esta compra.', code: 'DOWNLOAD_LIMIT_REACHED' });
+  }
+
+  try {
+    const jar = await createWatermarkedJar({
+      originalUrl: item.downloadUrl,
+      licenseKey: order.license_key,
+      orderId: order.id,
+      buyerEmail: order.buyer_email,
+      productId: item.id
+    });
+
+    downloads.push({ ts: nowISO(), ip: req.ip, ua: (req.headers['user-agent'] || '').slice(0, 100) });
+    await run('UPDATE orders SET downloads = ? WHERE id = ?', [JSON.stringify(downloads), order.id]);
+
+    const filename = filenameForDownload({ productName: item.name, productId: item.id });
+    res.setHeader('Content-Type', 'application/java-archive');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', jar.length);
+    res.end(jar);
+  } catch (e) {
+    log.error('erro ao gerar JAR watermarkado', { orderId: order.id, error: e.message });
+    return res.status(500).json({ error: 'Erro ao gerar build do plugin' });
+  }
 });
 
 // Log de download (público, validado pelo próprio token)
@@ -608,7 +678,7 @@ router.get('/by-token', async (req, res) => {
       return res.status(403).json({ error: 'Confirme seu e-mail para liberar o download.' });
     }
   }
-  res.json({ order: serializeDownloadOrder(order) });
+  res.json({ order: await serializeDownloadOrder(order) });
 });
 
 // Lista todos os pedidos (admin)
@@ -814,6 +884,7 @@ function serialize(o, { admin = false, includeDownload = false } = {}) {
   if (!canExposeDownload) {
     items = items.map(({ downloadUrl, download_url, ...rest }) => rest);
   }
+  const downloadCount = downloads.length;
   // Breakdown (líquido) — campos podem ser 0 para pedidos legados (pré-refatoração)
   const subtotal = Number(o.subtotal || 0);
   const gatewayFee = Number(o.gateway_fee || 0);
@@ -845,6 +916,7 @@ function serialize(o, { admin = false, includeDownload = false } = {}) {
     commission,
     items,
     downloads,
+    downloadCount,
     is_paid: o.status === 'pago',
     is_trashed: !!o.deleted_at,
     // Garantir aliases camelCase (frontend lê paymentMethod, backend salva payment_method)
@@ -874,12 +946,20 @@ function serialize(o, { admin = false, includeDownload = false } = {}) {
   return out;
 }
 
-function serializeDownloadOrder(o) {
+async function serializeDownloadOrder(o) {
   if (!o) return null;
   let items = [];
   let downloads = [];
   try { items = JSON.parse(o.items || '[]'); } catch {}
   try { downloads = JSON.parse(o.downloads || '[]'); } catch {}
+  let maxDownloads = 5;
+  try {
+    const first = items[0];
+    if (first && first.id) {
+      const product = await get('SELECT max_downloads FROM products WHERE id = ?', [first.id]);
+      if (product && product.max_downloads) maxDownloads = Number(product.max_downloads);
+    }
+  } catch {}
   return {
     id: o.id,
     status: o.status,
@@ -889,6 +969,8 @@ function serializeDownloadOrder(o) {
     downloadToken: o.download_token,
     download_expires_at: o.download_expires_at,
     downloadExpiresAt: o.download_expires_at,
+    downloadCount: downloads.length,
+    maxDownloads,
     items: items.map(i => ({
       id: i.id,
       name: i.name,

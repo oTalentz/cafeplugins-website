@@ -137,6 +137,19 @@ function normalizeUser(u) {
   c.banReason = c.banReason || c.ban_reason || null;
   return c;
 }
+
+function normalizeProduct(p) {
+  if (!p) return null;
+  const c = {};
+  for (const k in p) c[toCamel(k)] = p[k];
+  c.maxDownloads = Number(c.maxDownloads || c.max_downloads || 5);
+  c.price = Number(c.price || 0);
+  c.oldPrice = c.oldPrice != null ? Number(c.oldPrice) : null;
+  c.stock = Number(c.stock || 0);
+  c.features = Array.isArray(c.features) ? c.features : [];
+  c.active = c.active != null ? !!c.active : true;
+  return c;
+}
 function getStoredUser() { try { return JSON.parse(sessionStorage.getItem(USER_KEY) || 'null'); } catch { return null; } }
 
 async function api(path, opts = {}) {
@@ -203,7 +216,7 @@ const DB = {
     if (stored && !cache.me) cache.me = stored;
 
     const tasks = [
-      api('/products').then(r => { cache.products = r.products || []; })
+      api('/products').then(r => { cache.products = (r.products || []).map(normalizeProduct); })
         .catch(e => { console.warn('Init products error:', e.message); })
     ];
     if (stored) {
@@ -439,23 +452,23 @@ const DB = {
   // ===========================================================
   //  PRODUCTS
   // ===========================================================
-  getProducts() { return cache.products; },
-  getProduct(id) { return cache.products.find(p => p.id === id) || null; },
+  getProducts() { return cache.products.map(normalizeProduct); },
+  getProduct(id) { return normalizeProduct(cache.products.find(p => p.id === id) || null); },
   async getAllProducts() {
     if (!cache.me || cache.me.role !== 'admin') return cache.products;
-    try { const r = await api('/products/all'); cache.products = r.products; return r.products; }
+    try { const r = await api('/products/all'); cache.products = (r.products || []).map(normalizeProduct); return cache.products; }
     catch { return cache.products; }
   },
   async createProduct(p) {
     const r = await api('/products', { method: 'POST', body: p });
-    cache.products.push(r.product);
+    if (r.product) cache.products.push(normalizeProduct(r.product));
     return r;
   },
   async addProduct(p) { return this.createProduct(p); },
   async updateProduct(id, patch) {
     const r = await api('/products/' + id, { method: 'PUT', body: patch });
     const idx = cache.products.findIndex(p => p.id === id);
-    if (idx >= 0) cache.products[idx] = r.product;
+    if (idx >= 0 && r.product) cache.products[idx] = normalizeProduct(r.product);
     return r;
   },
   async deleteProduct(id) {

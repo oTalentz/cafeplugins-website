@@ -47,7 +47,8 @@ function cleanProductBody(b) {
     downloadUrl: sanitizeUrl(b.downloadUrl || ''),
     price: Number(b.price),
     oldPrice: b.oldPrice != null && b.oldPrice !== '' ? Number(b.oldPrice) : null,
-    stock: Number(b.stock ?? 999)
+    stock: Number(b.stock ?? 999),
+    maxDownloads: Number.isFinite(Number(b.maxDownloads)) ? Number(b.maxDownloads) : 5
   };
 }
 
@@ -62,11 +63,14 @@ router.post('/', requireAdmin, async (req, res) => {
   if (!isFinite(c.stock) || c.stock < 0 || c.stock > 999999) {
     return res.status(400).json({ error: 'Estoque inválido' });
   }
+  if (!isFinite(c.maxDownloads) || c.maxDownloads < 1 || c.maxDownloads > 1000) {
+    return res.status(400).json({ error: 'Limite de downloads inválido (1-1000)' });
+  }
   const id = sanitizeIdentifier(b.id, { max: 64 }) || uid('pf-');
   const features = Array.isArray(b.features) ? b.features.slice(0, 20).map(f => sanitizeText(String(f), { max: 200 })) : [];
   await run(
-    `INSERT INTO products (id, name, tagline, description, price, old_price, category, version, badge, features, stock, video, image, download_url, active, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (id, name, tagline, description, price, old_price, category, version, badge, features, stock, video, image, download_url, max_downloads, active, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, c.name, c.tagline, c.description,
       c.price, c.oldPrice,
@@ -74,6 +78,7 @@ router.post('/', requireAdmin, async (req, res) => {
       JSON.stringify(features),
       c.stock,
       c.video, c.image, c.downloadUrl,
+      c.maxDownloads,
       b.active === false ? 0 : 1,
       nowISO()
     ]
@@ -139,6 +144,10 @@ router.put('/:id', requireAdmin, async (req, res) => {
   if (b.stock !== undefined) {
     if (!isFinite(c.stock) || c.stock < 0 || c.stock > 999999) return res.status(400).json({ error: 'Estoque inválido' });
     fields.push('stock = ?'); args.push(c.stock);
+  }
+  if (b.maxDownloads !== undefined) {
+    if (!isFinite(c.maxDownloads) || c.maxDownloads < 1 || c.maxDownloads > 1000) return res.status(400).json({ error: 'Limite de downloads inválido' });
+    fields.push('max_downloads = ?'); args.push(c.maxDownloads);
   }
   if (b.features !== undefined) {
     const features = Array.isArray(b.features) ? b.features.slice(0, 20).map(f => sanitizeText(String(f), { max: 200 })) : [];
@@ -206,6 +215,7 @@ function serialize(p, { admin = false } = {}) {
     price: Number(p.price),
     oldPrice: p.old_price != null ? Number(p.old_price) : null,
     stock: Number(p.stock || 0),
+    maxDownloads: Number(p.max_downloads || 5),
     features,
     active: Boolean(p.active)
   };

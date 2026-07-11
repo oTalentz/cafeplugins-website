@@ -31,7 +31,7 @@
   "functions": {
     "api/index.js": {
       "regions": ["pdx1"],
-      "maxDuration": 30
+      "maxDuration": 60
     }
   },
   "trailingSlash": false,
