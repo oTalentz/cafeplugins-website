@@ -279,30 +279,10 @@ function fmtDate(iso) {
 }
 
 function renderOrders() {
-  const buyer = DB.getCurrentBuyer();
-  const aff = DB.getCurrentAffiliate();
+  const buyer = DB.getCurrentBuyer() || DB.getCurrentUser();
   const target = $('#ordersList');
 
-  if (aff) {
-    const refs = DB.getOrders().filter(o => (o.affiliateCode || '').toUpperCase() === aff.code);
-    if (refs.length === 0) {
-      target.innerHTML = emptyOrders('Nenhuma venda indicada ainda', 'Compartilhe seu link e ganhe 25% por cada compra.');
-      return;
-    }
-    target.innerHTML = `<div class="aff-section"><h3>Vendas indicadas</h3><table class="mini-table">
-      <thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Comissão</th><th>Status</th></tr></thead>
-      <tbody>${refs.map(o => `<tr>
-        <td>${fmtDate(o.createdAt)}</td>
-        <td>${escHtml(o.buyer.name)}<br><small style="color:var(--ink-3)">${escHtml(o.buyer.email)}</small></td>
-        <td>${escHtml(o.items[0]?.name || '—')}</td>
-        <td><strong>${brl(o.commission)}</strong></td>
-        <td><span class="pill ${o.status === 'pago' ? 'ok' : o.status === 'pendente' ? 'warn' : 'danger'}">${escHtml(o.status)}</span></td>
-      </tr>`).join('')}</tbody>
-    </table></div>`;
-    return;
-  }
-
-  if (!buyer) { target.innerHTML = ''; return; }
+  if (!buyer || !buyer.email) { target.innerHTML = ''; return; }
   const orders = DB.getOrdersByEmail(buyer.email);
   if (orders.length === 0) {
     target.innerHTML = emptyOrders('Você ainda não tem compras', 'Explore o catálogo e faça sua primeira compra.');
