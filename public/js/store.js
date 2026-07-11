@@ -256,12 +256,16 @@ function openCheckout() {
   closeCart();
   const total = state.cart.reduce((s, i) => s + i.price, 0);
   $('#checkoutTotal').textContent = brl(total);
-  
+
+  // Esconde forma de pagamento para produtos gratuitos
+  const paymentGroup = $('#paymentMethod')?.closest('.input-group');
+  if (paymentGroup) paymentGroup.style.display = total === 0 ? 'none' : '';
+
   // Preenche dados do usuário logado
   $('#buyerName').value = me.name || '';
   $('#buyerEmail').value = me.email || '';
-  
-  $('#paymentMethod').value = 'pix';
+
+  $('#paymentMethod').value = total === 0 ? 'pix' : 'pix';
   const urlRef = new URLSearchParams(location.search).get('ref');
   const cookieRef = DB.getRefCookie();
   const prefilled = (cookieRef || urlRef || '').toUpperCase();
@@ -317,8 +321,9 @@ async function confirmPurchase() {
 
   const submitBtn = $('#confirmPurchase');
   const isCard = method === 'cartao';
-  const loadingLabel = isCard ? 'Processando pagamento...' : 'Gerando PIX...';
-  const btnLabel = isCard ? 'Pagar com Cartão' : 'Pagar com PIX';
+  const isFree = total === 0;
+  const loadingLabel = isCard ? 'Processando pagamento...' : (isFree ? 'Liberando plugin...' : 'Gerando PIX...');
+  const btnLabel = isCard ? 'Pagar com Cartão' : (isFree ? 'Obter grátis' : 'Pagar com PIX');
   const endLoading = Loading.buttonStart(submitBtn, btnLabel);
 
   try {
@@ -372,6 +377,13 @@ async function confirmPurchase() {
     // Se for cartão mas não tem checkoutUrl, algo falhou - reabre o checkout
     if (isCard && !checkoutUrl) {
       toast(I18N ? I18N.t('payment.card.unavailable') : 'Pagamento com cartão indisponível. Tente novamente ou use PIX.', false);
+      return;
+    }
+
+    // Pedido gratuito: aprovado automaticamente, redireciona para download
+    if (isFree && order.status === 'pago') {
+      toast('Plugin liberado! Redirecionando para sua conta...');
+      setTimeout(() => { window.location.href = 'account.html#compras'; }, 1200);
       return;
     }
 

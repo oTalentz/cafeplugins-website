@@ -176,6 +176,17 @@ router.post('/checkout', checkoutLimiter, optionalAuth, async (req, res) => {
     ]
   );
 
+  // Pedido gratuito: aprova automaticamente sem passar por gateway
+  if (subtotal === 0) {
+    try {
+      await markOrderPaid(orderId, { skipEmail: false });
+    } catch (err) {
+      log.error('Erro ao aprovar pedido gratuito', { orderId, error: err.message });
+    }
+    const order = await get('SELECT * FROM orders WHERE id = ?', [orderId]);
+    return res.json({ order: serialize(order), pix: { paid: true }, checkoutUrl: null, cardError: null });
+  }
+
   // Cria cobrança conforme gateway ativo
   let pix = { stub: paymentGateway() === 'manual' };
   let checkoutUrl = null;
