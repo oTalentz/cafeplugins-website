@@ -64,7 +64,7 @@ export function embedPublicKeyInJar(jarBuffer, productId, apiUrl = 'https://cafe
   const lines = licenseYaml.split(/\r?\n/);
   const setKey = (key, value) => {
     const idx = lines.findIndex(l => l.trim().startsWith(`${key}:`));
-    const serialized = value.includes('\n') ? `|\n${value.split('\n').map(l => `  ${l}`).join('\n')}` : ` ${value}`;
+    const serialized = value.includes('\n') ? ` |\n${value.split('\n').map(l => `  ${l}`).join('\n')}` : ` ${value}`;
     if (idx >= 0) {
       // substitui chave e remove possíveis linhas multilinha antigas
       let end = idx + 1;
