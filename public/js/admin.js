@@ -225,6 +225,7 @@ $$('#sideNav button').forEach(btn => {
     if (page === 'payouts') renderPayouts();
     if (page === 'health') renderHealth();
     if (page === 'licenses') renderLicenses();
+    if (page === 'settings') renderSettingsInfo();
     // Persistir a seção ativa para restaurar após reload
     try { localStorage.setItem('pixelforge_admin_active_page', page); } catch (e) {}
   };
@@ -1827,6 +1828,46 @@ async function refreshAllFromBackend() {
 }
 
 // =============================================================
+//  Configurações — informações do sistema (read-only)
+// =============================================================
+let _settingsInfoLoaded = false;
+async function renderSettingsInfo() {
+  const wrap = $('#settingsSystemInfo');
+  if (!wrap) return;
+  if (_settingsInfoLoaded) return; // carrega só uma vez por sessão
+  _settingsInfoLoaded = true;
+  wrap.innerHTML = '<div class="health-kv-row"><div class="health-kv-k muted">Carregando…</div></div>';
+  try {
+    const data = await DB.apiFetch('/diag');
+    const checks = data.checks || {};
+    const gw = checks.gateway || {};
+    const lic = checks.license || {};
+    const gh = checks.github || {};
+    const mp = checks.mercadopago || {};
+    const brevo = checks.brevo || {};
+    const row = (k, v, ok) => `<div class="health-kv-row"><div class="health-kv-k">${escHtml(k)}</div><div class="health-kv-v">${ok === undefined ? escHtml(v) : ok ? '<span class="pill ok">' + escHtml(v) + '</span>' : '<span class="pill danger">' + escHtml(v) + '</span>'}</div></div>`;
+    wrap.innerHTML = `
+      <div class="health-kv">
+        ${row('Ambiente', data.vercel ? 'Vercel (serverless)' : 'Local', data.vercel !== undefined ? true : undefined)}
+        ${row('Node', data.node_version || '—', undefined)}
+        ${row('Uptime', formatUptime(data.uptime_sec || 0), undefined)}
+        ${row('Gateway ativo', gw.active || '—', gw.ok)}
+        ${row('PIX', gw.pix ? 'habilitado' : 'desabilitado', gw.pix)}
+        ${row('Cartão', gw.card ? 'habilitado' : 'desabilitado', gw.card)}
+        ${row('Mercado Pago', mp.ok ? 'conectado' : (mp.error || 'não configurado'), mp.ok)}
+        ${row('Brevo (e-mails)', brevo.ok ? 'conectado' : (brevo.error || 'não configurado'), brevo.ok)}
+        ${row('GitHub (downloads)', gh.ok ? 'conectado' : (gh.error || 'não configurado'), gh.ok)}
+        ${row('Licenciamento', lic.ok ? 'RS256 ok' : (lic.error || 'não configurado'), lic.ok)}
+        ${lic.ttl ? row('TTL da licença', lic.ttl, undefined) : ''}
+        ${lic.activationLimit ? row('Limite de ativações', String(lic.activationLimit), undefined) : ''}
+      </div>
+    `;
+  } catch (e) {
+    wrap.innerHTML = `<div class="health-kv-row"><div class="health-kv-k muted">Erro: ${escHtml(e.message)}</div></div>`;
+  }
+}
+
+// =============================================================
 //  API Health (admin-only)
 // =============================================================
 async function pingHealthIndicator() {
@@ -2012,6 +2053,18 @@ async function _renderHealthImpl() {
     ? `${checksOkCount} / ${checkKeys.length} OK`
     : `${checksFailCount} com falha`;
   checksPill.className = 'pill ' + (checksFailCount === 0 ? 'ok' : 'danger');
+  // Nomes amigáveis para as checagens do sistema
+  const CHECK_LABELS = {
+    products: 'Banco — Produtos',
+    users: 'Banco — Usuários',
+    jwt: 'JWT (sessões)',
+    brevo: 'Brevo (e-mails)',
+    github: 'GitHub (downloads)',
+    mercadopago: 'Mercado Pago (pagamentos)',
+    license: 'Licenciamento (RS256)',
+    gateway: 'Gateway ativo'
+  };
+
   checksBody.innerHTML = checkKeys.length === 0
     ? '<div class="health-check-row muted">Nenhuma checagem retornada.</div>'
     : checkKeys.map(k => {
@@ -2022,9 +2075,19 @@ async function _renderHealthImpl() {
       if (c.status) details.push('HTTP ' + c.status);
       if (c.can_sign) details.push('assinatura ok');
       if (c.can_verify) details.push('verificação ok');
+      if (c.active) details.push('gateway: ' + c.active);
+      if (c.pix) details.push('PIX ok');
+      if (c.card) details.push('cartão ok');
+      if (c.algorithm) details.push(c.algorithm);
+      if (c.ttl) details.push('TTL ' + c.ttl);
+      if (c.activationLimit) details.push('limite ' + c.activationLimit + ' ativações');
+      if (c.repo) details.push('repo: ' + c.repo);
+      if (c.private != null) details.push(c.private ? 'privado' : 'público');
+      if (c.defaultBranch) details.push('branch: ' + c.defaultBranch);
       if (c.error) details.push(c.error);
       if (c.code) details.push('código ' + c.code);
       const meta = details.length ? details.join(' · ') : (isOk ? 'sem detalhes' : 'falha desconhecida');
+      const label = CHECK_LABELS[k] || k;
       return `
         <div class="health-check-row">
           <div class="health-check-icon ${isOk ? 'ok' : 'err'}">${isOk
@@ -2032,7 +2095,7 @@ async function _renderHealthImpl() {
             : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
           }</div>
           <div class="health-check-body">
-            <div class="health-check-name">${escHtml(k)}</div>
+            <div class="health-check-name">${escHtml(label)}</div>
             <div class="health-check-desc">${escHtml(meta)}</div>
           </div>
         </div>

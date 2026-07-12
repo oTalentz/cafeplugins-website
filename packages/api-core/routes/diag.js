@@ -115,13 +115,14 @@ const OPTIONAL = [
   'MERCADOPAGO_ACCESS_TOKEN',
   'MERCADOPAGO_WEBHOOK_SECRET',
   'MERCADOPAGO_URL',
-  'ABACATE_API_KEY',
-  'ABACATE_WEBHOOK_SECRET',
   'MANUAL_PIX_KEY',
   'GITHUB_TOKEN',
+  'GITHUB_REPO',
   'GITHUB_PLUGIN_REPO',
   'LICENSE_PRIVATE_KEY',
   'LICENSE_PUBLIC_KEY',
+  'LICENSE_TOKEN_TTL',
+  'LICENSE_ACTIVATION_LIMIT',
   'APP_URL',
   'CORS_ORIGIN',
   'NODE_ENV'
@@ -240,39 +241,29 @@ router.get('/', requireAdmin, async (req, res) => {
     result.checks.brevo = { ok: false, error: e.message };
   }
 
-  // Teste AbacatePay: usa endpoint de listagem de cobranças PIX (read-only e público na auth)
-  if (process.env.ABACATE_API_KEY) {
+  // Teste GitHub: valida token e repo chamando a API (read-only)
+  if (process.env.GITHUB_TOKEN && process.env.GITHUB_REPO) {
     try {
-      const r = await fetch('https://api.abacatepay.com/v1/billing/list', {
+      const r = await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPO}`, {
         method: 'GET',
-        headers: { Authorization: `Bearer ${process.env.ABACATE_API_KEY}` }
+        headers: {
+          'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28'
+        }
       });
       const body = await r.json().catch(() => ({}));
-      const apiOk = r.ok && (body.success !== false || Array.isArray(body?.data));
-      result.checks.abacate = { ok: apiOk, status: r.status };
-      // Teste adicional: catálog de produtos (essencial para cartão)
-      if (apiOk) {
-        try {
-          const r2 = await fetch('https://api.abacatepay.com/v1/products/list', {
-            method: 'GET',
-            headers: { Authorization: `Bearer ${process.env.ABACATE_API_KEY}` }
-          });
-          const body2 = await r2.json().catch(() => ({}));
-          const list = Array.isArray(body2?.data) ? body2.data : [];
-          result.checks.abacate_products = {
-            ok: r2.ok,
-            status: r2.status,
-            count: list.length
-          };
-        } catch (e) {
-          result.checks.abacate_products = { ok: false, error: e.message };
-        }
-      }
+      result.checks.github = {
+        ok: r.ok,
+        status: r.status,
+        repo: process.env.GITHUB_REPO,
+        ...(r.ok ? { private: !!body.private, defaultBranch: body.default_branch } : { error: body?.message || `HTTP ${r.status}` })
+      };
     } catch (e) {
-      result.checks.abacate = { ok: false, error: e.message };
+      result.checks.github = { ok: false, error: e.message };
     }
   } else {
-    result.checks.abacate = { ok: false, error: 'ABACATE_API_KEY não configurado' };
+    result.checks.github = { ok: false, error: 'GITHUB_TOKEN e/ou GITHUB_REPO não configurados' };
   }
 
   // Teste Mercado Pago: valida o access token chamando /v1/payments/search (read-only)
@@ -296,6 +287,31 @@ router.get('/', requireAdmin, async (req, res) => {
     }
   } else {
     result.checks.mercadopago = { ok: false, error: 'MERCADOPAGO_ACCESS_TOKEN não configurado' };
+  }
+
+  // Teste Licenciamento: valida que as chaves RS256 estão configuradas e são válidas
+  try {
+    const privateKey = (process.env.LICENSE_PRIVATE_KEY || '').replace(/\\n/g, '\n').trim();
+    const publicKey = (process.env.LICENSE_PUBLIC_KEY || '').replace(/\\n/g, '\n').trim();
+    if (!privateKey && !publicKey) {
+      result.checks.license = { ok: false, error: 'LICENSE_PRIVATE_KEY e LICENSE_PUBLIC_KEY não configurados' };
+    } else if (!privateKey) {
+      result.checks.license = { ok: false, error: 'LICENSE_PRIVATE_KEY não configurado' };
+    } else if (!publicKey) {
+      result.checks.license = { ok: false, error: 'LICENSE_PUBLIC_KEY não configurado' };
+    } else {
+      const jwt = await import('jsonwebtoken');
+      const testToken = jwt.default.sign({ t: 1 }, privateKey, { algorithm: 'RS256', expiresIn: '1s' });
+      const decoded = jwt.default.verify(testToken, publicKey, { algorithms: ['RS256'] });
+      result.checks.license = {
+        ok: decoded && decoded.t === 1,
+        algorithm: 'RS256',
+        ttl: process.env.LICENSE_TOKEN_TTL || '7d',
+        activationLimit: Number(process.env.LICENSE_ACTIVATION_LIMIT || 3)
+      };
+    }
+  } catch (e) {
+    result.checks.license = { ok: false, error: e.message };
   }
 
   // Gateway ativo (resumo: qual gateway está em uso)

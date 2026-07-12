@@ -348,7 +348,7 @@
         <div class="page-head">
           <div>
             <h1>Configurações</h1>
-            <p>Backup de dados, informações da loja e ações administrativas.</p>
+            <p>Backup de dados e ações administrativas.</p>
           </div>
         </div>
 
@@ -368,11 +368,11 @@
         </div>
 
         <div class="panel">
-          <div class="panel-head"><h2>Sobre a loja</h2></div>
-          <div class="panel-body">
-            <p style="color:var(--ink-3); font-size:0.9375rem"><strong>cafe plugins</strong> — loja de plugins de Minecraft com checkout via Mercado Pago (PIX + cartão), licenciamento com watermark, downloads via GitHub Releases e e-mails transacionais via Brevo.</p>
-            <p style="color:var(--ink-3); font-size:0.9375rem; margin-top:8px">Backend: Node.js + Express + Turso (libSQL). Frontend: HTML/CSS/JS vanilla. Deploy: Vercel.</p>
-            <p style="color:var(--ink-3); font-size:0.8125rem; margin-top:12px">Para diagnóstico em tempo real do backend (env, DB, Brevo, Mercado Pago, JWT), abra a aba <strong>API Health</strong>.</p>
+          <div class="panel-head"><h2>Informações do sistema</h2></div>
+          <div class="panel-body" id="settingsSystemInfo">
+            <div class="health-kv">
+              <div class="health-kv-row"><div class="health-kv-k">Carregando…</div></div>
+            </div>
           </div>
         </div>
       </section>
