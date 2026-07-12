@@ -965,3 +965,42 @@ function setupAccountNotice() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// =============================================================
+//  FAQ Carousel
+// =============================================================
+(function initFaqCarousel() {
+  const track = document.getElementById('faqTrack');
+  const dotsWrap = document.getElementById('faqDots');
+  const prev = document.getElementById('faqPrev');
+  const next = document.getElementById('faqNext');
+  if (!track || !dotsWrap) return;
+  const slides = track.querySelectorAll('.faq-slide');
+  let current = 0;
+
+  // Cria dots
+  slides.forEach((_, i) => {
+    const dot = document.createElement('button');
+    dot.className = 'faq-dot' + (i === 0 ? ' active' : '');
+    dot.setAttribute('aria-label', `Slide ${i + 1}`);
+    dot.addEventListener('click', () => go(i));
+    dotsWrap.appendChild(dot);
+  });
+
+  function go(idx) {
+    current = (idx + slides.length) % slides.length;
+    track.style.transform = `translateX(-${current * 100}%)`;
+    dotsWrap.querySelectorAll('.faq-dot').forEach((d, i) => d.classList.toggle('active', i === current));
+  }
+
+  if (prev) prev.addEventListener('click', () => go(current - 1));
+  if (next) next.addEventListener('click', () => go(current + 1));
+
+  // Swipe em mobile
+  let startX = 0;
+  track.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, { passive: true });
+  track.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - startX;
+    if (Math.abs(dx) > 40) go(dx > 0 ? current - 1 : current + 1);
+  }, { passive: true });
+})();

@@ -13,7 +13,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="preload" as="script" href="js/i18n.js" />
   <link rel="stylesheet" href="css/loading.css?v=13" />
-  <link rel="stylesheet" href="css/style.css?v=14" />
+  <link rel="stylesheet" href="css/style.css?v=15" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230a0a0a'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M24 8c0 3-3 5-3 8s3 5 3 8'/%3E%3Cpath d='M34 8c0 3-3 5-3 8s3 5 3 8'/%3E%3Cpath d='M14 22h26v22a6 6 0 0 1-6 6H20a6 6 0 0 1-6-6V22z'/%3E%3Cpath d='M40 28h7a5 5 0 0 1 5 5v3a5 5 0 0 1-5 5h-7'/%3E%3C/g%3E%3C/svg%3E" />
   <script src="js/i18n.js?v=3"></script>
   <script>
@@ -224,25 +224,38 @@
     </div>
   </section>
 
-  <!-- ============ FAQ ============ -->
+  <!-- ============ FAQ (carrossel) ============ -->
   <section class="faq-section" id="faq">
     <div class="container">
       <h2>FAQ</h2>
-      <div class="faq-item">
-        <h3>Como recebo o plugin após a compra?</h3>
-        <p>Você recebe um e-mail com o link de download. A licença já vem embutida no plugin.</p>
+      <div class="faq-carousel" id="faqCarousel">
+        <div class="faq-track" id="faqTrack">
+          <div class="faq-slide">
+            <h3>Como recebo o plugin após a compra?</h3>
+            <p>Você recebe um e-mail com o link de download. A licença já vem embutida no plugin.</p>
+          </div>
+          <div class="faq-slide">
+            <h3>Quais formas de pagamento?</h3>
+            <p>PIX (confirmação automática) e cartão de crédito.</p>
+          </div>
+          <div class="faq-slide">
+            <h3>Funciona offline?</h3>
+            <p>Sim. A licença é validada na inicialização e periodicamente, mas o plugin funciona normalmente entre as verificações.</p>
+          </div>
+          <div class="faq-slide">
+            <h3>Posso pedir reembolso?</h3>
+            <p>Não. Por se tratar de um produto digital, não oferecemos reembolso após o download. Em caso de problema técnico, entre em contato pelo suporte.</p>
+          </div>
+        </div>
       </div>
-      <div class="faq-item">
-        <h3>Quais formas de pagamento?</h3>
-        <p>PIX (confirmação automática) e cartão de crédito.</p>
-      </div>
-      <div class="faq-item">
-        <h3>Funciona offline?</h3>
-        <p>Sim. A licença é validada na inicialização e periodicamente, mas o plugin funciona normalmente entre as verificações.</p>
-      </div>
-      <div class="faq-item">
-        <h3>Posso pedir reembolso?</h3>
-        <p>Não. Por se tratar de um produto digital, não oferecemos reembolso após o download. Em caso de problema técnico, entre em contato pelo suporte.</p>
+      <div class="faq-carousel-controls">
+        <button class="faq-carousel-btn" id="faqPrev" aria-label="Anterior">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="faq-carousel-dots" id="faqDots"></div>
+        <button class="faq-carousel-btn" id="faqNext" aria-label="Próximo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
       </div>
     </div>
   </section>
@@ -559,7 +572,7 @@
 
   <script src="js/loading.js?v=29"></script>
   <script src="js/data.js?v=29"></script>
-  <script src="js/store.js?v=31"></script>
+  <script src="js/store.js?v=32"></script>
   <script>
     // Language selector interactions
     (function() {
