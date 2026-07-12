@@ -180,6 +180,25 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id TEXT PRIMARY KEY,
+  admin_id TEXT NOT NULL,
+  admin_email TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id TEXT,
+  details TEXT,
+  ip TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_audit_admin ON audit_log(admin_id);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  id TEXT PRIMARY KEY,
+  applied_at TEXT NOT NULL
+);
 `;
 
 export async function initSchema() {
@@ -300,12 +319,38 @@ const MIGRATIONS = [
 async function runMigrations() {
   const client = getClient();
 
-  // Agrupa migrations por tabela para evitar N round-trips
+  // Garante que a tabela schema_migrations existe (caso o schema ainda não tenha sido aplicado)
+  try {
+    await client.execute({
+      sql: `CREATE TABLE IF NOT EXISTS schema_migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`,
+      args: []
+    });
+  } catch (e) {
+    log.warn('falha ao criar schema_migrations', { error: e.message });
+  }
+
+  // Lê migrations já aplicadas
+  const appliedSet = new Set();
+  try {
+    const applied = await client.execute({ sql: 'SELECT id FROM schema_migrations', args: [] });
+    for (const row of applied.rows) appliedSet.add(row.id);
+  } catch (e) {
+    log.warn('falha ao ler schema_migrations', { error: e.message });
+  }
+
+  // Filtra apenas migrations que ainda não foram aplicadas
+  const pendingMigrations = MIGRATIONS.filter(m => !appliedSet.has(m.id));
+  if (pendingMigrations.length === 0) {
+    log.info('nenhuma migration pendente');
+    return;
+  }
+
+  // Agrupa migrations pendentes por tabela para evitar N round-trips
   const tables = new Set();
   const columnMigrations = [];
   const postMigrations = [];
 
-  for (const m of MIGRATIONS) {
+  for (const m of pendingMigrations) {
     if (m.post) {
       postMigrations.push(m);
     } else {
@@ -346,11 +391,22 @@ async function runMigrations() {
     }
   }
 
+  // Registra migrations de coluna como aplicadas
+  for (const m of columnMigrations) {
+    try {
+      await client.execute({ sql: 'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)', args: [m.id, new Date().toISOString()] });
+    } catch (e) {
+      log.warn(`falha ao registrar migration ${m.id}: ${e.message}`);
+    }
+  }
+
   // Executa hooks post individualmente
   for (const m of postMigrations) {
     try {
       log.info(`migration post: ${m.id}`);
       await m.post(client);
+      // Registra migration post como aplicada
+      await client.execute({ sql: 'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)', args: [m.id, new Date().toISOString()] });
     } catch (e) {
       log.warn(`migration post skip ${m.id}: ${e.message}`);
     }

@@ -12,7 +12,7 @@ const log = createLogger('license');
 
 const LICENSE_PRIVATE_KEY = (process.env.LICENSE_PRIVATE_KEY || '').replace(/\\n/g, '\n').trim();
 const LICENSE_TOKEN_TTL = process.env.LICENSE_TOKEN_TTL || '7d';
-const LICENSE_LIMIT = Math.max(1, Number(process.env.LICENSE_ACTIVATION_LIMIT || 1));
+const LICENSE_LIMIT = Math.max(1, Number(process.env.LICENSE_ACTIVATION_LIMIT || 3));
 
 function hasItem(order, pluginId) {
   try {

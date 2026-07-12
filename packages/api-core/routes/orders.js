@@ -17,7 +17,8 @@ import { rateLimit, timingSafeEqual } from 'api-core/lib/security.js';
 import { calculateBreakdown } from 'api-core/lib/fees.js';
 import { createLogger } from 'api-core/lib/logger.js';
 import { PHONE_MIN_DIGITS, PHONE_MAX_DIGITS } from 'api-core/lib/config.js';
-import { createWatermarkedJar, fetchOriginalJar, filenameForDownload } from 'api-core/lib/jar-watermark.js';
+import { createWatermarkedJar, filenameForDownload } from 'api-core/lib/jar-watermark.js';
+import { auditLog } from 'api-core/lib/audit.js';
 
 const router = Router();
 const log = createLogger('orders');
@@ -89,6 +90,15 @@ router.post('/checkout', checkoutLimiter, optionalAuth, async (req, res) => {
     subtotal += price;
     return { id: p.id, name: p.name, price, downloadUrl: p.download_url || '', abacateProductId: p.abacate_product_id || null };
   });
+
+  // Validação de estoque: bloqueia produtos esgotados (stock = 0).
+  // O decremento só acontece quando o pedido é efetivamente pago.
+  for (const item of orderItems) {
+    const p = productMap.get(item.id);
+    if (p && Number(p.stock) === 0) {
+      return res.status(400).json({ error: `Produto ${item.name} esgotado` });
+    }
+  }
 
   // Anti-double-purchase
   const e = email.toLowerCase().trim();
@@ -652,22 +662,8 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
     res.setHeader('Content-Length', jar.length);
     res.end(jar);
   } catch (e) {
-    log.error('erro ao gerar JAR watermarkado, tentando fallback original', { orderId: order.id, error: e.message, stack: e.stack });
-    try {
-      const fallback = await fetchOriginalJar(downloadUrl);
-
-      downloads.push({ ts: nowISO(), ip: req.ip, ua: (req.headers['user-agent'] || '').slice(0, 100) });
-      await run('UPDATE orders SET downloads = ? WHERE id = ?', [JSON.stringify(downloads), order.id]);
-
-      const filename = filenameForDownload({ productName: item.name, productId: item.id });
-      res.setHeader('Content-Type', 'application/java-archive');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.setHeader('Content-Length', fallback.length);
-      res.end(fallback);
-    } catch (fallbackErr) {
-      log.error('erro ao baixar JAR original no fallback', { orderId: order.id, error: fallbackErr.message, stack: fallbackErr.stack });
-      return res.status(500).json({ error: fallbackErr.message || 'Erro ao gerar build do plugin' });
-    }
+    log.error('erro ao gerar JAR watermarkado', { orderId: order.id, error: e.message, stack: e.stack });
+    return res.status(500).json({ error: 'Erro ao gerar build do plugin: ' + e.message });
   }
 });
 
@@ -838,6 +834,17 @@ router.patch('/:id', requireAdmin, async (req, res) => {
     const wasPaid = (order.status === 'pago');
     const isReversing = (status === 'reembolsado' || status === 'cancelado');
     await run('UPDATE orders SET status = ? WHERE id = ?', [status, req.params.id]);
+    // Restaura estoque se o pedido estava pago e está sendo revertido
+    if (wasPaid && isReversing) {
+      try {
+        const items = JSON.parse(order.items || '[]');
+        for (const item of items) {
+          await run('UPDATE products SET stock = stock + 1 WHERE id = ?', [item.id]);
+        }
+      } catch (e) {
+        log.warn('erro ao restaurar estoque', { orderId: req.params.id, error: e.message });
+      }
+    }
     if (wasPaid && isReversing && order.affiliate_code) {
       const aff = await get('SELECT * FROM users WHERE affiliate_code = ?', [order.affiliate_code]);
       if (aff && aff.affiliate_status === 'active') {
@@ -855,7 +862,52 @@ router.patch('/:id', requireAdmin, async (req, res) => {
   }
 
   const updated = await get('SELECT * FROM orders WHERE id = ?', [req.params.id]);
+  // Audit log para reembolso/cancelamento
+  if (status === 'reembolsado' || status === 'cancelado') {
+    await auditLog({
+      adminId: req.user.id,
+      adminEmail: req.user.email,
+      action: 'order_status_change',
+      targetType: 'order',
+      targetId: req.params.id,
+      details: { from: order.status, to: status },
+      ip: req.ip
+    });
+  }
   res.json({ order: serialize(updated, { admin: true }) });
+});
+
+// Renova download token expirado (dono do pedido, autenticado)
+router.post('/:id/renew-download', requireAuth, async (req, res) => {
+  const id = sanitizeIdentifier(req.params.id, { max: 64 });
+  if (!id) return res.status(400).json({ error: 'ID invalido' });
+  const order = await get('SELECT * FROM orders WHERE id = ?', [id]);
+  if (!order) return res.status(404).json({ error: 'Pedido nao encontrado' });
+  if (order.buyer_email.toLowerCase() !== req.user.email.toLowerCase()) {
+    return res.status(403).json({ error: 'Acesso negado' });
+  }
+  if (order.status !== 'pago') return res.status(400).json({ error: 'Pedido nao esta pago' });
+  const newToken = randomToken(32);
+  const newExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  await run('UPDATE orders SET download_token = ?, download_expires_at = ? WHERE id = ?', [newToken, newExpires, id]);
+  log.info('download token renovado', { orderId: id });
+  res.json({ downloadToken: newToken, expiresAt: newExpires });
+});
+
+// Reenvia código de verificação para o e-mail do buyer (público via token de download)
+router.post('/:id/resend-verify', async (req, res) => {
+  const id = sanitizeIdentifier(req.params.id, { max: 64 });
+  if (!id) return res.status(400).json({ error: 'ID invalido' });
+  const t = sanitizeDownloadToken(req.query.t || '');
+  if (!t) return res.status(400).json({ error: 'Token ausente' });
+  const order = await get('SELECT * FROM orders WHERE id = ? AND download_token = ?', [id, t]);
+  if (!order) return res.status(404).json({ error: 'Pedido nao encontrado' });
+  try {
+    await sendCode(order.buyer_email, 'verify');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(429).json({ error: err.message || 'Erro ao reenviar codigo' });
+  }
 });
 
 // ===== ROTA GENÉRICA (sempre por último!) =====
@@ -880,6 +932,16 @@ async function markOrderPaid(orderId, opts = {}) {
     [paidAt, orderId]
   );
   if (!r.rowsAffected) return; // Outra chamada já marcou como pago
+
+  // Decrementa estoque de cada produto (só quando pago)
+  try {
+    const items = JSON.parse(order.items || '[]');
+    for (const item of items) {
+      await run('UPDATE products SET stock = stock - 1 WHERE id = ? AND stock > 0', [item.id]);
+    }
+  } catch (e) {
+    log.warn('erro ao decrementar estoque', { orderId, error: e.message });
+  }
 
   // Auto-verifica e-mail do buyer (alta confiança: pagamento real veio do PSP)
   if (order.user_id) {

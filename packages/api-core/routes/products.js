@@ -6,6 +6,7 @@ import { sanitizeIdentifier, sanitizeText, sanitizeUrl, LIMITS } from 'api-core/
 import { createAbacateProduct, deleteAbacateProduct } from 'api-core/lib/payments.js';
 import { createLogger } from 'api-core/lib/logger.js';
 import { embedPublicKeyInJar, uploadJarToGitHubRelease, fetchOriginalJar } from 'api-core/lib/jar-watermark.js';
+import { auditLog } from 'api-core/lib/audit.js';
 
 const router = Router();
 const log = createLogger('products');
@@ -204,6 +205,14 @@ router.delete('/:id', requireAdmin, async (req, res) => {
     try { await deleteAbacateProduct(existing.abacate_product_id); } catch (e) { console.warn('[products] AbacatePay delete failed:', e.message); }
   }
   await run('DELETE FROM products WHERE id = ?', [id]);
+  await auditLog({
+    adminId: req.user.id,
+    adminEmail: req.user.email,
+    action: 'delete_product',
+    targetType: 'product',
+    targetId: id,
+    ip: req.ip
+  });
   res.json({ ok: true });
 });
 

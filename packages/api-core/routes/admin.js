@@ -6,6 +6,7 @@ import { sanitizeIdentifier, sanitizeText as st } from 'api-core/lib/sanitize.js
 import { sendMail, orderPaidEmail } from 'api-core/lib/mailer.js';
 import { calculateBreakdown } from 'api-core/lib/fees.js';
 import { createAbacateProduct } from 'api-core/lib/payments.js';
+import { auditLog, getAuditLogs } from 'api-core/lib/audit.js';
 
 const router = Router();
 
@@ -160,6 +161,15 @@ router.delete('/users/:id', requireAdmin, async (req, res) => {
   }
   // finalmente deleta o user
   await run('DELETE FROM users WHERE id = ?', [id]);
+  await auditLog({
+    adminId: req.user.id,
+    adminEmail: req.user.email,
+    action: 'delete_user',
+    targetType: 'user',
+    targetId: id,
+    details: { email: target.email, role: target.role },
+    ip: req.ip
+  });
   res.json({ ok: true });
 });
 
@@ -456,5 +466,13 @@ function syncOne(p) {
     }, 8500))
   ]);
 }
+
+// Admin: audit log
+router.get('/audit-log', requireAdmin, async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 100, 500);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+  const logs = await getAuditLogs(limit, offset);
+  res.json({ logs });
+});
 
 export default router;

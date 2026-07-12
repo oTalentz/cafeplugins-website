@@ -4,7 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>cafe · plugins</title>
-  <meta name="description" content="Loja de plugins premium para Minecraft. PvP, economia, facções, lobby e muito mais." />
+  <meta name="description" content="Cafe Plugins - Loja de plugins premium para Minecraft. Compre com PIX ou cartão, receba na hora." />
+  <meta property="og:title" content="Cafe Plugins - Plugins premium para Minecraft" />
+  <meta property="og:description" content="Compre plugins premium para Minecraft com PIX ou cartão. Entrega automática." />
+  <meta property="og:type" content="website" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -121,6 +124,9 @@
         <p data-i18n="catalog.subtitle">Tudo o que você precisa para deixar seu servidor com a sua cara.</p>
       </div>
       <div class="filters" id="filters"></div>
+      <div class="product-search-wrap">
+        <input type="search" id="productSearch" class="input product-search" placeholder="Buscar plugins..." aria-label="Buscar plugins" />
+      </div>
       <div class="product-grid" id="productGrid"></div>
     </div>
   </section>
@@ -159,28 +165,28 @@
   </section>
 
   <!-- ============ FAQ ============ -->
-  <section class="section" id="faq">
+  <section class="faq-section" id="faq">
     <div class="container">
-      <div class="section-head">
-        <h2>Perguntas frequentes</h2>
+      <h2>Perguntas Frequentes</h2>
+      <div class="faq-item">
+        <h3>Como recebo o plugin após a compra?</h3>
+        <p>Após o pagamento ser confirmado, você recebe um e-mail com o link de download. O plugin vem com sua licença embutida — basta colocar no servidor.</p>
       </div>
-      <div class="faq">
-        <details>
-          <summary>Os plugins recebem atualizações?</summary>
-          <p>Sim. Todas as compras incluem 1 ano de updates. Você pode renovar com 50% de desconto.</p>
-        </details>
-        <details>
-          <summary>Funciona em qual versão do Minecraft?</summary>
-          <p>A maioria suporta 1.16+ até a versão mais recente. Cada plugin mostra sua compatibilidade no card.</p>
-        </details>
-        <details>
-          <summary>Tem suporte?</summary>
-          <p>Suporte 24/7 no nosso Discord e por e-mail. Resposta média em 2 horas.</p>
-        </details>
-        <details>
-          <summary>Posso usar em vários servidores?</summary>
-          <p>A licença padrão cobre 1 servidor. Para multi-servidor, fale com a gente — temos planos especiais.</p>
-        </details>
+      <div class="faq-item">
+        <h3>Em quantos servidores posso usar?</h3>
+        <p>Cada licença permite até 3 ativações de servidor. Você pode gerenciar suas ativações na sua conta.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Os plugins funcionam offline?</h3>
+        <p>Sim! O plugin valida a licença online na inicialização e periodicamente, mas funciona normalmente entre as verificações.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Quais formas de pagamento aceitam?</h3>
+        <p>PIX (com confirmação automática) e cartão de crédito via gateway seguro.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Posso pedir reembolso?</h3>
+        <p>Sim. Entre em contato em até 7 dias após a compra para solicitar reembolso.</p>
       </div>
     </div>
   </section>
@@ -542,7 +548,7 @@
       <div class="modal-body" style="text-align:center">
         <p style="color:var(--ink-3); margin-bottom:8px; font-size:0.875rem">Pedido <code id="pixOrderId">—</code> · <strong id="pixAmount" style="color:var(--ink)">R$ 0,00</strong></p>
         <div style="background:white; border-radius:12px; padding:12px; display:inline-block; margin:8px 0">
-          <img id="pixQrImage" alt="QR Code Pix" style="display:block; width:240px; height:240px" />
+          <img id="pixQrImage" alt="QR Code Pix" loading="lazy" style="display:block; width:240px; height:240px" />
         </div>
         <p style="margin:8px 0; font-size:0.8125rem; color:var(--ink-3)"><span data-i18n="payment.pix.expires">Expira em</span> <strong id="pixTimer" style="color:var(--ink)">30:00</strong></p>
         <div style="display:flex; gap:6px; align-items:stretch; margin-top:8px">

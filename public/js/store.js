@@ -5,6 +5,25 @@
 const $  = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
+// Helpers de cookie para first-click attribution de afiliado
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? match[2] : null;
+}
+function setCookie(name, value, days) {
+  const d = new Date();
+  d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = name + '=' + value + ';expires=' + d.toUTCString() + ';path=/;SameSite=Lax';
+}
+
+// First-click attribution: salva ref da URL no cookie cafe_aff (30 dias).
+// Se já existe cookie, NÃO sobrescreve (first-click wins).
+const urlParams = new URLSearchParams(window.location.search);
+const refParam = urlParams.get('ref');
+if (refParam && !getCookie('cafe_aff')) {
+  setCookie('cafe_aff', refParam.toUpperCase(), 30);
+}
+
 // CRIT-04 FIX: escape HTML para innerHTML com dados do servidor
 function escHtml(s) {
   return String(s == null ? '' : s)
@@ -24,6 +43,9 @@ let state = {
   cart: JSON.parse(localStorage.getItem(STORAGE_KEYS.cart) || '[]'),
   filter: 'Todos'
 };
+
+// Termo de busca atual (aplicado junto com os filtros de categoria/preço)
+let _searchQuery = '';
 
 const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -76,7 +98,7 @@ function renderFilters() {
     const btn = document.createElement('button');
     btn.className = 'filter-chip' + (state.filter === cat ? ' active' : '');
     btn.textContent = cat;
-    btn.onclick = () => { state.filter = cat; renderFilters(); renderProducts(); };
+    btn.onclick = () => { state.filter = cat; renderFilters(); renderProducts(_searchQuery); };
     wrap.appendChild(btn);
   });
 }
@@ -89,10 +111,19 @@ function applyFilter(p, filter) {
   return p.category === filter;
 }
 
-function renderProducts() {
+function renderProducts(searchQuery = '') {
   const grid = $('#productGrid');
   grid.innerHTML = '';
-  const list = state.filter === 'Todos' ? state.products : state.products.filter(p => applyFilter(p, state.filter));
+  let list = state.filter === 'Todos' ? state.products : state.products.filter(p => applyFilter(p, state.filter));
+
+  // Filtro por texto (nome, tagline ou descrição)
+  if (searchQuery) {
+    list = list.filter(p =>
+      (p.name || '').toLowerCase().includes(searchQuery) ||
+      (p.tagline || '').toLowerCase().includes(searchQuery) ||
+      (p.description || '').toLowerCase().includes(searchQuery)
+    );
+  }
 
   if (list.length === 0) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
@@ -203,6 +234,7 @@ function openCart()  { renderCart(); $('#cartDrawer').classList.add('open'); $('
 function closeCart() { $('#cartDrawer').classList.remove('open'); $('#drawerOverlay').classList.remove('open'); }
 
 function openProductModal(p) {
+  updateMetaForProduct(p);
   $('#modalTitle').textContent = p.name;
   $('#modalPrice').innerHTML = `${brl(p.price)}${p.oldPrice ? ` <small style="color:var(--ink-3); text-decoration:line-through; font-size:0.875rem; font-weight:400; margin-left:4px">${brl(p.oldPrice)}</small>` : ''}`;
 
@@ -236,6 +268,18 @@ function openProductModal(p) {
   $('#productModal').classList.add('open');
 }
 function closeProductModal() { $('#productModal').classList.remove('open'); }
+
+// SEO: atualiza meta tags dinamicamente quando um produto é aberto no modal
+function updateMetaForProduct(p) {
+  if (!p) return;
+  document.title = (p.name || 'Plugin') + ' - Cafe Plugins';
+  const desc = document.querySelector('meta[name="description"]');
+  if (desc) desc.content = p.tagline || (p.description || '').slice(0, 160) || '';
+  const ogTitle = document.querySelector('meta[property="og:title"]');
+  if (ogTitle) ogTitle.content = (p.name || 'Plugin') + ' - Cafe Plugins';
+  const ogDesc = document.querySelector('meta[property="og:description"]');
+  if (ogDesc) ogDesc.content = p.tagline || '';
+}
 
 function openCheckout() {
   if (state.cart.length === 0) return;
@@ -338,7 +382,7 @@ async function confirmPurchase() {
           return { id: i.id, name: i.name, price: i.price, downloadUrl: p?.downloadUrl || '' };
         }),
         total,
-        affiliateCode: affiliate ? affiliate.code : null,
+        affiliateCode: affiliate ? affiliate.code : (getCookie('cafe_aff') || null),
         commission: affiliate ? commission : 0
       })
     );
@@ -547,6 +591,15 @@ async function init() {
   renderProducts();
   renderCartBadge();
   renderCart();
+
+  // Busca por texto na landing page (filtra em tempo real)
+  const searchInput = document.getElementById('productSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      _searchQuery = searchInput.value.toLowerCase().trim();
+      renderProducts(_searchQuery);
+    });
+  }
 
   $('#openCart').onclick     = openCart;
   $('#closeCart').onclick    = closeCart;

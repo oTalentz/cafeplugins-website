@@ -5,6 +5,7 @@ import { uid, nowISO, generateAffCode, todayISO } from 'api-core/lib/util.js';
 import { sanitizePixKey, sanitizeText, LIMITS } from 'api-core/lib/sanitize.js';
 import { rateLimit } from 'api-core/lib/security.js';
 import { GATEWAY_FEE_FIXED, TAX_RATE, AFFILIATE_NET_COMMISSION, MIN_PAYOUT, MAX_MANUAL_COMMISSION } from 'api-core/lib/config.js';
+import { auditLog } from 'api-core/lib/audit.js';
 
 const router = Router();
 
@@ -138,6 +139,15 @@ router.post('/admin/:id/status', requireAdmin, async (req, res) => {
   const u = await get('SELECT id FROM users WHERE id = ?', [id]);
   if (!u) return res.status(404).json({ error: 'Afiliado não encontrado' });
   await run('UPDATE users SET affiliate_status = ?, ban_reason = ? WHERE id = ?', [status, sanitizeText(reason || '', { max: 500 }), id]);
+  await auditLog({
+    adminId: req.user.id,
+    adminEmail: req.user.email,
+    action: 'affiliate_status_change',
+    targetType: 'affiliate',
+    targetId: id,
+    details: { status, reason: reason || null },
+    ip: req.ip
+  });
   res.json({ ok: true });
 });
 
