@@ -188,10 +188,11 @@ router.post('/checkout', checkoutLimiter, optionalAuth, async (req, res) => {
     ]
   );
 
-  // Pedido gratuito: aprova automaticamente sem passar por gateway
+  // Pedido gratuito: aprova automaticamente sem passar por gateway.
+  // Não envia e-mail de confirmação para pedidos gratuitos.
   if (subtotal === 0) {
     try {
-      await markOrderPaid(orderId, { skipEmail: false });
+      await markOrderPaid(orderId, { skipEmail: true });
     } catch (err) {
       log.error('Erro ao aprovar pedido gratuito', { orderId, error: err.message });
     }
@@ -994,12 +995,17 @@ async function markOrderPaid(orderId, opts = {}) {
   }
 
   if (!opts.skipEmail) {
-    try {
-      const products = JSON.parse(order.items || '[]');
-      const tpl = orderPaidEmail({ order, buyer: { name: order.buyer_name }, products });
-      await sendMail({ to: order.buyer_email, ...tpl });
-    } catch (err) {
-      console.error('Paid mailer error:', err.message);
+    // Pedidos gratuitos (subtotal=0) não enviam e-mail de confirmação.
+    // Só enviamos para pedidos pagos com valor real.
+    const isFree = Number(order.subtotal || 0) === 0;
+    if (!isFree) {
+      try {
+        const products = JSON.parse(order.items || '[]');
+        const tpl = orderPaidEmail({ order, buyer: { name: order.buyer_name }, products });
+        await sendMail({ to: order.buyer_email, ...tpl });
+      } catch (err) {
+        console.error('Paid mailer error:', err.message);
+      }
     }
   }
 }
