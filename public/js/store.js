@@ -425,7 +425,7 @@ async function confirmPurchase() {
     persistCart();
     closeCheckout();
 
-    // Se for cartão, redirecionar para checkout seguro do gateway (Mercado Pago/AbacatePay)
+    // Se for cartão, redirecionar para checkout seguro do gateway (Mercado Pago)
     if (isCard && checkoutUrl) {
       toast(I18N ? I18N.t('payment.card.redirect') : 'Redirecionando para pagamento com cartão...');
       setTimeout(() => {

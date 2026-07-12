@@ -385,8 +385,8 @@ function renderProducts() {
       <td><strong>${brl(p.price)}</strong>${p.oldPrice ? ` <small style="color:var(--ink-3); text-decoration:line-through">${brl(p.oldPrice)}</small>` : ''}</td>
       <td>${p.badge ? `<span class="pill">${escHtml(p.badge)}</span>` : '<span style="color:var(--ink-3)">—</span>'}</td>
       <td>${synced
-        ? '<span class="pill ok" title="Sincronizado com AbacatePay (cartão habilitado)">Cartão OK</span>'
-        : '<span class="pill warn" title="Sem sync com AbacatePay — cartão indisponível para este plugin. Clique em Sync AbacatePay acima.">Sem sync</span>'}</td>
+        ? '<span class="pill ok" title="Sincronizado com o gateway de cartão (cartão habilitado)">Cartão OK</span>'
+        : '<span class="pill warn" title="Sem sync com o gateway — cartão indisponível para este plugin. Clique em Sincronizar produtos acima.">Sem sync</span>'}</td>
       <td style="text-align:right">
         <div class="actions justify-end">
           <button class="icon-btn" data-test="${p.id}" title="Testar download">
@@ -496,7 +496,7 @@ if (coverFileInput) {
   });
 }
 
-// Sync products to AbacatePay
+// Sync products to gateway (cartão)
 const syncBtn = document.getElementById('syncAbacateBtn');
 if (syncBtn) {
   syncBtn.onclick = async () => {
@@ -505,7 +505,7 @@ if (syncBtn) {
       const r = await DB.syncProductsToAbacate();
       endLoading();
       if (r.ok) {
-        toast(`${r.synced} produto${r.synced !== 1 ? 's' : ''} sincronizado${r.synced !== 1 ? 's' : ''} com AbacatePay${r.failed ? ` (${r.failed} falhou)` : ''}`);
+        toast(`${r.synced} produto${r.synced !== 1 ? 's' : ''} sincronizado${r.synced !== 1 ? 's' : ''} com o gateway de cartão${r.failed ? ` (${r.failed} falhou)` : ''}`);
         await DB.getAllProducts();
         renderProducts();
       } else {
@@ -620,12 +620,12 @@ $('#saveProductBtn').onclick = async () => {
     } else {
       toast('Plugin criado');
     }
-    // Feedback de sync com AbacatePay (cartão)
+    // Feedback de sync com o gateway (cartão)
     if (result && result.abacate) {
       if (result.abacate.synced || result.abacate.resynced) {
-        toast('Sincronizado com AbacatePay (cartão habilitado)', true);
+        toast('Sincronizado com o gateway de cartão (cartão habilitado)', true);
       } else if (result.abacate.error) {
-        toast(`Plugin salvo, mas sync com AbacatePay falhou: ${result.abacate.error}. Cartão indisponível até "Sync AbacatePay".`, false);
+        toast(`Plugin salvo, mas sync com o gateway falhou: ${result.abacate.error}. Cartão indisponível até "Sincronizar produtos".`, false);
       }
     }
     // Refresh do cache admin (garante que download_url, cover_image e
@@ -1005,7 +1005,7 @@ function openSaleDetail(id) {
     <div class="sale-items full" style="margin-top:10px; background:var(--bg-subtle); padding:10px; border-radius:6px">
       <strong style="display:block; margin-bottom:8px; font-weight:600">Breakdown de taxas</strong>
       <div class="it"><span>Subtotal (preço bruto)</span><strong>${brl(b.subtotal)}</strong></div>
-      <div class="it" style="color:var(--ink-3)"><span>− Taxa gateway (AbacatePay)</span><strong>− ${brl(b.gatewayFee)}</strong></div>
+      <div class="it" style="color:var(--ink-3)"><span>− Taxa gateway (cartão)</span><strong>− ${brl(b.gatewayFee)}</strong></div>
       <div class="it" style="color:var(--ink-3)"><span>− Impostos${b.taxRate ? ` (${(b.taxRate * 100).toFixed(1)}%)` : ''}</span><strong>${b.taxAmount ? '− ' + brl(b.taxAmount) : '—'}</strong></div>
       <div class="it" style="border-top:1px solid var(--line); padding-top:6px; margin-top:6px"><span>Líquido (base da comissão)</span><strong>${brl(b.netAmount)}</strong></div>
       ${o.affiliateCode ? `<div class="it" style="color:var(--ink-3)"><span>− Comissão afiliado (${b.commissionRate || 25}%)</span><strong>− ${brl(b.commission || 0)}</strong></div>

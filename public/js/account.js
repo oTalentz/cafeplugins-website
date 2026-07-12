@@ -1091,7 +1091,7 @@ async function init() {
 
 init();
 
-// Detecta retorno do checkout hospedado do AbacatePay (cartão).
+// Detecta retorno do checkout hospedado do gateway (cartão).
 // /api/orders/:id/return redireciona para cá com ?return=paid|cancelled|notfound&order=ID
 function handleCardReturn() {
   try {

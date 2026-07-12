@@ -109,7 +109,7 @@ const I18N = {
       'checkout.affiliate_placeholder': 'Ex: JOAO42',
       'checkout.confirm': 'Confirmar pagamento',
 
-      'checkout.payment.note': 'PIX transparente e cartão via checkout seguro do Mercado Pago ou AbacatePay.',
+      'checkout.payment.note': 'PIX transparente e cartão via checkout seguro do Mercado Pago.',
       // Payment methods
       'payment.pix.title': 'Pagar com Pix',
       'payment.pix.expires': 'Expira em',
@@ -273,7 +273,7 @@ const I18N = {
       'checkout.affiliate': 'Código de afiliado (opcional)',
       'checkout.affiliate_placeholder': 'Ex: JOAO42',
       'checkout.confirm': 'Confirmar pagamento',
-      'checkout.payment.note': 'PIX transparente e cartão via checkout seguro do Mercado Pago ou AbacatePay.',
+      'checkout.payment.note': 'PIX transparente e cartão via checkout seguro do Mercado Pago.',
 
       // Payment methods
       'payment.pix.title': 'Pagar com Pix',
@@ -438,7 +438,7 @@ const I18N = {
       'checkout.affiliate': 'Affiliate code (optional)',
       'checkout.affiliate_placeholder': 'Ex: JOAO42',
       'checkout.confirm': 'Confirm payment',
-      'checkout.payment.note': 'Transparent Pix and credit card via secure Mercado Pago or AbacatePay checkout.',
+      'checkout.payment.note': 'Transparent Pix and credit card via secure Mercado Pago checkout.',
 
       // Payment methods
       'payment.pix.title': 'Pay with Pix',
@@ -603,7 +603,7 @@ const I18N = {
       'checkout.affiliate': 'Código de afiliado (opcional)',
       'checkout.affiliate_placeholder': 'Ej: JOAO42',
       'checkout.confirm': 'Confirmar pago',
-      'checkout.payment.note': 'Pix transparente y tarjeta vía checkout seguro de Mercado Pago o AbacatePay.',
+      'checkout.payment.note': 'Pix transparente y tarjeta vía checkout seguro de Mercado Pago.',
 
       // Payment methods
       'payment.pix.title': 'Pagar con Pix',

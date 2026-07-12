@@ -1,6 +1,6 @@
 # cafe plugins — Loja de Plugins Minecraft
 
-Loja completa para vender plugins de Minecraft com **downloads via GitHub Releases**, **pagamento via Mercado Pago** (PIX transparente + cartão) ou **AbacatePay** (PIX), **e-mails transacionais** (Brevo), **banco de dados gerenciado** (Turso / libSQL) e **programa de afiliados** com payouts mensais via PIX. Inclui painel do cliente/afiliado e painel admin.
+Loja completa para vender plugins de Minecraft com **downloads via GitHub Releases**, **pagamento via Mercado Pago** (PIX transparente + cartão), **e-mails transacionais** (Brevo), **banco de dados gerenciado** (Turso / libSQL), **programa de afiliados** com payouts via PIX, **licenciamento com watermark** (JWT assinado embutido no JAR) e **SDK Java** para validação offline. Inclui painel do cliente/afiliado e painel admin.
 
 ```
 +------------------+        +------------------+        +-------------------+
@@ -8,9 +8,9 @@ Loja completa para vender plugins de Minecraft com **downloads via GitHub Releas
 |  account.html    |        |  Express + JWT   |        |  libsql://...     |
 |  admin.html      |        |                  |        +-------------------+
 |  download.html   |        |                  |
-|  js/data.js      |        |                  |  -->   AbacatePay (PIX)
+|  js/data.js      |        |                  |  -->   Mercado Pago (PIX + cartão)
 |  js/store.js     |        |                  |  -->   Brevo (e-mails)
-|  js/admin.js     |        |                  |  -->   GitHub Releases
+|  js/admin.js     |        |                  |  -->   GitHub Releases (JARs + capas)
 +------------------+        +------------------+
 ```
 
@@ -20,10 +20,49 @@ Loja completa para vender plugins de Minecraft com **downloads via GitHub Releas
 - **Backend**: Node.js 18+ ES Modules, Express, JWT — deployado como Vercel Serverless Function
 - **DB**: Turso (libSQL) — SQLite distribuído
 - **E-mail**: Brevo (ex-Sendinblue)
-- **Pagamento**: Mercado Pago (PIX transparente + cartão) ou AbacatePay (PIX)
-- **Arquivos**: GitHub Releases (CDN gratuito)
+- **Pagamento**: Mercado Pago (PIX transparente + cartão via Checkout Pro/Orders API)
+- **Arquivos**: GitHub Releases (CDN gratuito — JARs e capas/banners)
 - **Auth**: bcrypt + JWT (7 dias, iss/aud)
+- **Licenciamento**: JWT RS256 assinado embutido no JAR (`cafe-watermark.jwt`) + SDK Java para validação
 - **Host**: Vercel (frontend + backend, sem servidor persistente)
+
+## Funcionalidades
+
+### Loja (pública)
+- Catálogo de plugins com capa/banner, badge, preço, tagline e vídeo
+- Busca de produtos na landing page
+- Checkout PIX (QR code transparente) ou cartão (redirect Mercado Pago)
+- Programa de afiliados com `?ref=CODE` (cookie 30 dias, atribuição first-click)
+- Dashboard público de afiliados com copiador de link
+- Página de download com licença e instruções
+- FAQ e SEO dinâmico (meta tags por produto)
+
+### Painel admin
+- Dashboard com receita, vendas, plugins, compradores e afiliados
+- Gestão de plugins: criar, editar, upload de JAR e capa/banner (com preview)
+- Identificação visual na lista: pills **JAR ✓/✗** e **Capa ✓/✗** + thumbnail da capa
+- Gestão de vendas: confirmar, atualizar status, lixeira, restaurar, exportar CSV
+- Gestão de afiliados: banir/pausar, comissão manual, alertas de self-referral
+- Payouts: aprovar em bulk, rejeitar com motivo, filtros por status
+- Validação de licenças: consultar e revogar ativações por servidor
+- API Health: diagnóstico em tempo real (env, DB, Brevo, Mercado Pago, JWT)
+- Configurações: export/import JSON, limpar dados de teste
+
+### Painel do cliente/afiliado
+- Meus pedidos com status e download
+- Tornar-se afiliado e gerar código único
+- Estatísticas diárias, conversão, payouts pendentes
+- Atualizar chave PIX para saques
+
+### Backend
+- Migrations idempotentes (versionadas)
+- Validação e decremento de estoque
+- Watermark obrigatório no JAR (SDK Java bloqueia sem watermark válido)
+- Fallback de download: serve JAR original se watermark falhar
+- Proxy de capa: `/api/products/:id/cover` busca imagem do GitHub com token
+- Audit log de ações admin
+- Rate limiting em auth e webhooks
+- Security headers e sanitização de inputs
 
 ## Setup local
 
@@ -49,28 +88,28 @@ A primeira execução cria as tabelas (com migrations idempotentes), o admin e o
 |---|---|---|
 | `TURSO_URL` | ✅ | URL do banco (já configurado) |
 | `TURSO_TOKEN` | ✅ | Token JWT do Turso (já configurado) |
-| `JWT_SECRET` | ✅ | Mude para uma string aleatória **≥32 chars** em produção (default bloqueado) |
+| `JWT_SECRET` | ✅ | String aleatória **≥32 chars** em produção (default bloqueado) |
 | `ADMIN_EMAIL` | ✅ | E-mail do admin criado no bootstrap |
-| `ADMIN_PASSWORD` | ✅ | Senha do admin (mude!) |
+| `ADMIN_PASSWORD` | ✅ | Senha do admin (mín. 12 chars em produção) |
 | `BREVO_API_KEY` | ❌ | Sem isso, e-mails viram **stub** (não enviam) |
 | `BREVO_SENDER_EMAIL` | ❌ | E-mail remetente verificado no Brevo |
 | `BREVO_SENDER_NAME` | ❌ | Nome do remetente (default: "cafe plugins") |
-| `EMAIL_CODE_COOLDOWN_SECONDS` | ❌ | Segundos de espera entre envios de códigos por e-mail (default: `60`) |
-| `PAYMENT_GATEWAY` | ❌ | `mercadopago` ou `abacate`. Se omitido, prefere Mercado Pago quando `MERCADOPAGO_ACCESS_TOKEN` está configurado. |
+| `EMAIL_CODE_COOLDOWN_SECONDS` | ❌ | Segundos de espera entre envios de códigos (default: `60`) |
+| `PAYMENT_GATEWAY` | ❌ | `mercadopago` (default se token configurado), `abacate` ou `manual` |
 | `MERCADOPAGO_ACCESS_TOKEN` | ❌ | Access token de produção/teste do Mercado Pago. Sem isso cai no stub. |
-| `MERCADOPAGO_WEBHOOK_SECRET` | ❌ | Secret para validar assinatura dos webhooks (`x-signature`) do Mercado Pago. |
+| `MERCADOPAGO_WEBHOOK_SECRET` | ❌ | Secret para validar assinatura dos webhooks (`x-signature`) |
 | `MERCADOPAGO_URL` | ❌ | Default: `https://api.mercadopago.com` |
-| `MERCADOPAGO_SANDBOX` | ❌ | `true` para usar URLs de teste do Checkout Pro (`sandbox_init_point`). Útil para contas de teste do Mercado Pago. |
-| `ABACATE_API_KEY` | ❌ | Sem isso, PIX vira **stub** (QR fake) |
-| `ABACATE_URL` | ❌ | Default: `https://api.abacatepay.com/v2` |
-| `ABACATE_WEBHOOK_SECRET` | ❌ | HMAC-SHA256 do body via header `x-webhook-signature` (recomendado). Fallback: header `X-Webhook-Secret`. |
+| `MERCADOPAGO_SANDBOX` | ❌ | `true` para usar URLs de teste do Checkout Pro |
 | `MANUAL_PIX_KEY` | ❌ | PIX manual para modo stub (fallback) |
-| `GITHUB_TOKEN` | ❌ | Só necessário para upload de plugins pelo admin |
-| `APP_URL` | ❌ | URL pública (ex: `https://cafeplugins.com`) — usada em links de e-mail e download |
+| `GITHUB_TOKEN` | ❌ | Necessário para upload de JARs e capas pelo admin |
+| `GITHUB_PLUGIN_REPO` | ❌ | Repo onde JARs/capas são armazenados (default: `oTalentz/Bestiary-Plugin-CafePlugins2026`) |
+| `LICENSE_PRIVATE_KEY` | ❌ | Chave privada RS256 (PEM) para assinar watermarks e licenças |
+| `LICENSE_PUBLIC_KEY` | ❌ | Chave pública RS256 (PEM) embutida nos JARs |
+| `APP_URL` | ❌ | URL pública (ex: `https://cafeplugins.com`) — links de e-mail e download |
 | `CORS_ORIGIN` | ❌ | Lista separada por vírgula. Em prod, defina o domínio final |
-| `GATEWAY_FEE_FIXED` | ❌ | Taxa fixa do gateway PIX em R$ (default: `0.80`) — usada no cálculo de comissão líquida |
-| `TAX_RATE` | ❌ | Alíquota de imposto (decimal, ex: `0.06` para 6% Simples Nacional). Default `0` (não desconta) |
-| `AFFILIATE_NET_COMMISSION` | ❌ | `true` (default) → comissão sobre o líquido (subtotal − taxa − impostos). `false` → sobre o bruto |
+| `GATEWAY_FEE_FIXED` | ❌ | Taxa fixa do gateway PIX em R$ (default: `0.80`) — cálculo de comissão líquida |
+| `TAX_RATE` | ❌ | Alíquota de imposto (decimal, ex: `0.06` para 6%). Default `0` |
+| `AFFILIATE_NET_COMMISSION` | ❌ | `true` (default) → comissão sobre líquido. `false` → sobre bruto |
 | `MIN_PAYOUT` | ❌ | Mínimo de saque em R$ (default: `10`) |
 | `MAX_MANUAL_COMMISSION` | ❌ | Limite de comissão manual em R$ (default: `10000`) |
 | `NODE_ENV` | ❌ | `production` bloqueia default JWT_SECRET e ativa hardenings |
@@ -89,56 +128,68 @@ A primeira execução cria as tabelas (com migrations idempotentes), o admin e o
 
 ### Produtos (`/api/products/*`)
 - `GET  /` — público, lista ativos
-- `GET  /all` — todos (admin)
+- `GET  /all` — todos (admin, inclui `download_url` e `cover_image`)
 - `GET  /:id` — detalhe
+- `GET  /:id/cover` — proxy de capa (busca imagem do GitHub com token, retorna como imagem pública)
 - `POST /` — criar (admin)
 - `PUT  /:id` — atualizar (admin)
+- `POST /:id/upload-jar` — upload de JAR (admin, embute chave pública e envia para GitHub)
+- `POST /:id/upload-cover` — upload de capa/banner (admin, envia para GitHub)
+- `GET  /:id/test-download` — testa se o JAR está acessível (admin)
 - `DELETE /:id` — deletar (admin)
 
 ### Pedidos (`/api/orders/*`)
-- `POST /checkout` — `{ name, email, items, affiliateCode?, paymentMethod? }` → cria pedido + PIX/cartão + cookie 30d do afiliado. Retorna `breakdown` com `subtotal/gatewayFee/netAmount/commission/commissionRate/storeKeeps`, além de `checkoutUrl` (cartão), `pixQrCode`, `pixQrImage` e `pixExpiresAt` (PIX) quando aplicável
-- `POST /webhook` — webhook do gateway ativo: AbacatePay (`billing.paid` / `checkout.completed`)
-- `POST /webhook/mercadopago` — webhook do Mercado Pago: evento `order` (Orders API, recomendado) ou `payment` (Checkout Pro legado), validação de assinatura `x-signature`
+- `POST /checkout` — `{ name, email, items, affiliateCode?, paymentMethod? }` → cria pedido + PIX/cartão + cookie 30d do afiliado. Retorna `breakdown` com `subtotal/gatewayFee/netAmount/commission/commissionRate/storeKeeps`, além de `checkoutUrl` (cartão), `pixQrCode`, `pixQrImage` e `pixExpiresAt` (PIX)
+- `POST /webhook/mercadopago` — webhook do Mercado Pago: evento `order` (Orders API) ou `payment` (Checkout Pro), validação `x-signature`
 - `POST /:id/confirm` — confirma manual (admin)
 - `PATCH /:id` — atualiza status (admin, transições validadas)
+- `GET  /:id/renew-download` — renova token de download (admin)
 - `GET  /me` — meus pedidos (auth)
 - `GET  /affiliate` — pedidos indicados pelo meu código (auth)
 - `GET  /:id` — detalhe (dono ou admin; inclui `breakdown`)
 - `GET  /:id/status` — status (dono via auth, ou guest com `?email=` exato)
 - `GET  /:id/download-token` — token curto p/ download (dono)
+- `GET  /:id/download?t=` — download do JAR watermarked (dono)
 - `GET  /by-token?t=` — lookup público (apenas pedidos pagos)
 - `GET  /` — todos (admin; cada order inclui `breakdown`)
 
 ### Afiliados (`/api/affiliates/*`)
-- `POST /become` — ativa conta de afiliado para o usuário logado (gera código único)
-- `GET  /me/stats` — `{ affiliate, dailyStats, month, pending, conversion, recentOrders, payouts, fees }` — cada `recentOrder` inclui `breakdown` completo
-- `PUT  /me/pix` — atualiza chave PIX do afiliado
-- `POST /payouts` — solicita saque via PIX (**mínimo `MIN_PAYOUT`**, default R$ 10)
+- `POST /become` — ativa conta de afiliado (gera código único)
+- `GET  /me/stats` — `{ affiliate, dailyStats, month, pending, conversion, recentOrders, payouts, fees }`
+- `PUT  /me/pix` — atualiza chave PIX
+- `POST /payouts` — solicita saque via PIX (**mínimo `MIN_PAYOUT`**)
 - `GET  /admin/all` — todos afiliados (admin)
 - `POST /admin/:id/status` — banir/pausar/desbanir (admin)
 - `GET  /admin/payouts?status=` — lista payouts (admin)
 - `POST /admin/payouts/:id/approve` — marca como pago (admin)
 - `POST /admin/payouts/:id/reject` — rejeita com motivo (admin)
 - `DELETE /admin/payouts/:id` — exclui payout (admin)
-- `POST /admin/:id/manual-commission` — adiciona comissão manual (admin, máx `MAX_MANUAL_COMMISSION`)
-- `GET  /lookup?code=` — público, valida código de afiliado (usado pelo `?ref=`; retorna `fees`)
-- `POST /click` — registra click de afiliado (deduplicado por IP+code+24h)
+- `POST /admin/:id/manual-commission` — adiciona comissão manual (admin)
+- `GET  /lookup?code=` — público, valida código de afiliado
+- `POST /click` — registra click (deduplicado por IP+code+24h)
 
 ### Admin (`/api/admin/*`)
-- `GET  /stats` — contadores gerais (receita, vendas, plugins, pendentes, compradores, afiliados)
+- `GET  /stats` — contadores gerais
 - `GET  /users` — lista de usuários
-- `DELETE /users/:id` — excluir (bloqueia último admin, preserva integridade com orders/affiliates)
-- `POST /orders` — cria pedido manual (admin, opcionalmente com `affiliate_code` + `status: pago`)
+- `DELETE /users/:id` — excluir (bloqueia último admin)
+- `POST /orders` — cria pedido manual (admin)
+- `POST /sync-products` — sincroniza produtos com gateway de cartão
+- `POST /cleanup` — limpa dados de teste
+
+### Licenças (`/api/license/*`)
+- `POST /validate` — valida licença + server-id (usado pelo SDK Java)
+- `GET  /activations` — lista ativações (admin)
+- `DELETE /activations/:id` — revoga ativação (admin)
 
 ### Diagnóstico
-- `GET  /api/diag` — verifica env, DB, Brevo, AbacatePay e Mercado Pago (use `public/diag.html`)
+- `GET  /api/diag` — verifica env, DB, Brevo, Mercado Pago e JWT (admin)
 - `GET  /api/health` — health check simples
 
 Todos os endpoints `/api/admin/*` e mutações admin exigem `Authorization: Bearer <token>` de um usuário com `role: admin`.
 
 ## Cadastros externos necessários
 
-A loja funciona **100% em modo stub** (sem nenhum cadastro externo) — mas para colocar em produção, você precisa destes serviços grátis:
+A loja funciona **100% em modo stub** (sem nenhum cadastro externo) — mas para produção, você precisa destes serviços:
 
 ### 1. Turso (banco)
 Já configurado. O schema é criado com migrations idempotentes no primeiro boot.
@@ -147,192 +198,115 @@ Já configurado. O schema é criado com migrations idempotentes no primeiro boot
 ### 2. Brevo (e-mail)
 - Crie conta grátis em [brevo.com](https://www.brevo.com) — 300 e-mails/dia grátis
 - Em **Settings → API Keys**, copie a chave para `BREVO_API_KEY`
-- Em **Transactional → Senders & Domains**, verifique o e-mail que vai usar como remetente (`BREVO_SENDER_EMAIL`)
-- Sem isso: códigos de login e e-mails de pagamento viram **stub** (você vê no console mas ninguém recebe)
+- Em **Transactional → Senders & Domains**, adicione e verifique seu e-mail remetente → `BREVO_SENDER_EMAIL`
+- (Opcional) `BREVO_SENDER_NAME` — default: "cafe plugins"
 
-### 3. Mercado Pago (recomendado — PIX transparente + cartão)
-- Crie conta em [mercadopago.com.br](https://www.mercadopago.com.br) e ative **credenciais de produção** (ou de teste)
-- Em **Desenvolvedor → Credenciais**, copie o `Access Token` para `MERCADOPAGO_ACCESS_TOKEN`
-- Em **Aplicações → Webhooks**, adicione a URL pública: `https://cafeplugins.com/api/orders/webhook/mercadopago` e ative o evento **Order (Mercado Pago)**. O evento `payment` também é aceito se estiver usando Checkout Pro.
-- Configure a assinatura (`x-signature`) no webhook e defina `MERCADOPAGO_WEBHOOK_SECRET` no `.env` para validação (em dev a assinatura é opcional)
-- Defina `PAYMENT_GATEWAY=mercadopago` (ou deixe em branco — a loja prefere Mercado Pago quando `MERCADOPAGO_ACCESS_TOKEN` está presente)
-- Para testar com contas de teste do Mercado Pago, defina `MERCADOPAGO_SANDBOX=true` para usar `sandbox_init_point` no checkout de cartão
-- Para PIX transparente: o cliente vê o QR code gerado pela Orders API (`/v1/orders`) diretamente no modal
-- Para cartão: o redirecionamento abre o checkout seguro do Mercado Pago (`/checkout/preferences`)
+### 3. Mercado Pago (pagamento)
+- Crie conta em [mercadopago.com.br](https://www.mercadopago.com.br)
+- Em **Seu negócio → Configurações → Credenciais**, copie o Access Token → `MERCADOPAGO_ACCESS_TOKEN`
+- Configure o webhook em **Notificações → Webhooks**: URL = `https://cafeplugins.com/api/orders/webhook/mercadopago`, eventos `order` e `payment`
+- (Opcional) `MERCADOPAGO_WEBHOOK_SECRET` para validar assinatura `x-signature`
+- (Opcional) `MERCADOPAGO_SANDBOX=true` para testar com contas de teste
 
-### 4. AbacatePay (PIX — alternativa)
-- Crie conta em [app.abacatepay.com](https://app.abacatepay.com) — só recebe pagamento, grátis
-- Em **Configurações → API**, copie o token para `ABACATE_API_KEY`
-- Em **Webhooks**, adicione a URL pública: `https://cafeplugins.com/api/orders/webhook` e configure o header `x-webhook-signature` (HMAC-SHA256 do body com `ABACATE_WEBHOOK_SECRET` como chave)
-- Defina `PAYMENT_GATEWAY=abacate` se quiser forçar o uso no lugar do Mercado Pago
+### 4. GitHub (JARs e capas)
+- Crie um repositório (pode ser privado) para armazenar releases
+- Gere um Personal Access Token com escopo `repo` → `GITHUB_TOKEN`
+- (Opcional) `GITHUB_PLUGIN_REPO` — default: `oTalentz/Bestiary-Plugin-CafePlugins2026`
+- O admin faz upload dos JARs e capas pelo painel — o backend envia para a release e salva a URL
 
-Sem nenhum gateway: o checkout gera um QR fake de 64 zeros. **Você precisa aprovar pedidos manualmente** pelo painel admin. **Alternativa**: defina `MANUAL_PIX_KEY` no `.env` e mostre a chave PIX no checkout para o cliente pagar direto.
-
-### 4. GitHub Releases (arquivos de plugins)
-- Os plugins `.jar` e imagens ficam em um repositório público de releases
-- Para baixar, **não precisa de token** (releases são públicos)
-- Para subir novos plugins pelo painel admin, precisa de `GITHUB_TOKEN` com permissão `repo`
-
-## Fluxo de uma venda
-
-1. Cliente vai em `index.html`, clica em **Comprar** num plugin
-2. Modal de pagamento abre → frontend chama `POST /api/orders/checkout`
-3. Backend valida produtos, anti-double-purchase, resolve afiliado, calcula **comissão líquida** (ver abaixo) e chama o gateway ativo (Mercado Pago ou AbacatePay) para gerar PIX/cartão
-4. QR Code ou botão de redirecionamento para checkout aparece no modal → cliente paga
-5. O gateway envia webhook para `POST /api/orders/webhook` → backend valida assinatura e chama `markOrderPaid()`:
-   - Marca pedido como `pago`
-   - Se há afiliado ativo: `conversions+1, total_sales+1, total_earned+=commission, daily_stats[hoje].sales+1/earned+`
-   - Gera `license_key` e envia e-mail com link de download
-6. Cliente acessa `account.html` → vê pedidos, clica em **Baixar** → `download.html` valida token → redireciona para GitHub Releases
-
-**Failsafe do polling**: mesmo se o webhook falhar, o frontend faz polling em `GET /orders/:id/status` que consulta o gateway e chama `markOrderPaid` se estiver pago.
-
-## Cálculo de comissão (modelo LÍQUIDO)
-
-Para garantir que a loja nunca saia no prejuízo pagando afiliado, a comissão é calculada sobre o **valor líquido** (após descontar a taxa fixa do gateway e impostos). Centralizado em `packages/api-core/lib/config.js` + `packages/api-core/lib/fees.js`:
-
+### 5. Chaves de licenciamento (watermark)
+- Gere um par de chaves RS256:
+```bash
+openssl genrsa -out private.pem 2048
+openssl rsa -in private.pem -pubout -out public.pem
 ```
-líquido = subtotal − gatewayFee − (subtotal × taxRate)
-comissão = líquido × (affiliateRate / 100)
-loja fica = subtotal − gatewayFee − (subtotal × taxRate) − comissão
+- `LICENSE_PRIVATE_KEY` = conteúdo de `private.pem` (com `\n` literal)
+- `LICENSE_PUBLIC_KEY` = conteúdo de `public.pem` (com `\n` literal)
+- O backend assina o watermark; o SDK Java valida com a chave pública embutida no JAR
+
+## SDK Java (licenciamento)
+
+O SDK em `packages/cafe-license-java/` valida licenças e watermarks offline:
+
+```java
+CafeLicense license = CafeLicense.builder()
+    .licenseKey("PF-XXXX-XXXX-XXXX")
+    .serverId("my-server")
+    .apiUrl("https://cafeplugins.com/api")
+    .build();
+
+// Validação inicial (online ou offline com watermark)
+license.validate();
+
+// Re-verificação periódica (opcional)
+CafeLicense.startPeriodicCheck(license, 24); // a cada 24h
 ```
 
-| Preço | Taxa gateway | Impostos | Líquido | Comissão 25% | Loja fica |
-|---|---|---|---|---|---|
-| R$ 1,00 | R$ 0,80 | — | R$ 0,20 | R$ 0,05 | R$ 0,15 |
-| R$ 10,00 | R$ 0,80 | — | R$ 9,20 | R$ 2,30 | R$ 6,90 |
-| R$ 25,00 | R$ 0,80 | — | R$ 24,20 | R$ 6,05 | R$ 18,15 |
-| R$ 100,00 | R$ 0,80 | — | R$ 99,20 | R$ 24,80 | R$ 74,40 |
-| R$ 100,00 | R$ 0,80 | 6% (R$ 6) | R$ 93,20 | R$ 23,30 | R$ 69,90 |
+O watermark (`cafe-watermark.jwt`) é embutido no JAR pelo backend no momento do download. Sem ele, o plugin **não funciona**.
 
-**Configurável via env**: `GATEWAY_FEE_FIXED` (default 0,80), `TAX_RATE` (default 0), `AFFILIATE_NET_COMMISSION` (default true). Cada `order` armazena o breakdown completo (`gateway_fee`, `net_amount`, `commission_rate`, `commission`) e o `serializeOrder` retorna o objeto `breakdown` para o frontend exibir. Vendas manuais do admin (`/admin/orders`) também calculam automaticamente.
+## Deploy na Vercel
 
-## Fluxo de afiliado
+1. Fork/clone este repo
+2. Conecte na Vercel — ela detecta `api/index.js` automaticamente
+3. Configure as variáveis de ambiente no dashboard da Vercel
+4. Deploy — o schema é criado automaticamente no primeiro boot
 
-1. Cliente logado clica em **Torne-se afiliado** na aba "Afiliado" do `account.html`
-2. Backend gera código único (ex: `LEONAR691C`) com 25% de comissão
-3. Afiliado compartilha `https://cafeplugins.com/?ref=LEONAR691C`
-4. Visitante chega → frontend chama `GET /affiliates/lookup?code=` para validar + `POST /affiliates/click` para registrar click (deduplicado por IP+24h)
-5. Cookie de 30 dias é salvo no `localStorage` (`pf_ref`); checkout pré-preenche o campo
-6. Cada venda paga com o código → comissão creditada automaticamente
-7. Afiliado configura chave PIX em "Chave PIX para receber"
-8. Quando saldo ≥ R$ 10, clica em **Pedir saque** → admin recebe solicitação
-9. Admin aprova/rejeita em `admin.html` → aba Payouts (com chave PIX visível)
-10. Saques mensais pagos via PIX manual pelo admin
+O `vercel.json` já está configurado com:
+- Serverless Function em `api/index.js` (maxDuration 30s)
+- Rewrites: `/api/(.*)` → `/api/index`, `/(.*)` → `/index.html`
 
-## Deploy
-
-### Vercel (recomendado — frontend + backend serverless)
-
-1. Suba o projeto para GitHub
-2. Crie um projeto em [vercel.com/new](https://vercel.com/new) e importe o repositório
-3. **Nenhuma config de build** é necessária (já tem `vercel.json` na raiz)
-4. Adicione as env vars no painel (Settings → Environment Variables):
-   - `TURSO_URL`
-   - `TURSO_TOKEN`
-   - `BREVO_API_KEY`
-   - `BREVO_SENDER_EMAIL` (ex: `noreply@cafeplugins.com`)
-   - `BREVO_SENDER_NAME` (ex: `cafe plugins`)
-   - `MERCADOPAGO_ACCESS_TOKEN`
-   - `MERCADOPAGO_WEBHOOK_SECRET`
-   - `MERCADOPAGO_SANDBOX` (`true` se usar contas de teste)
-   - `PAYMENT_GATEWAY` (`mercadopago` ou `abacate`)
-   - `ABACATE_API_KEY` (só se forçar gateway abacate)
-   - `ABACATE_WEBHOOK_SECRET` (só se usar AbacatePay)
-   - `JWT_SECRET` (gere com `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`)
-   - `ADMIN_EMAIL`
-   - `ADMIN_PASSWORD`
-   - `APP_URL` (ex: `https://cafeplugins.com`)
-   - `CORS_ORIGIN` (ex: `https://cafeplugins.com,https://www.cafeplugins.com`)
-   - `NODE_ENV=production`
-5. Deploy automático a cada push em `main`
-
-**Estrutura serverless**: `api/index.js` é o único entry point. O Express é instanciado on-demand em cada request (cold start ~1-2s). `bootstrap()` (schema + migrations + admin) roda 1x por cold start e fica cacheado.
-
-**Domínio customizado**: Vercel → Settings → Domains → adicionar domínio e configurar DNS (NS1/NS2.vercel-dns.com).
-
-### Render.com (alternativa)
-1. Web Service → Build: `npm install` → Start: `node api/server.js`
-2. Adicione as env vars (mesmas do `.env`)
-
-### Railway (alternativa)
-Similar ao Render; defina o Root Directory como raiz (não `api`).
-
-## Segurança (hardenings aplicados)
-
-- **Rate limiting** em rotas sensíveis: register (5/min), login (8/min), code (3/min), reset (3/min), checkout (8/min), webhook (60/min), affiliate click (30/min), payout (3/min)
-- **JWT_SECRET** ≥ 32 chars em prod; default bloqueado fora de dev
-- **bcrypt** cost 12, JWT expira em 7d com iss/aud
-- **Anti-double-purchase** no backend (409 `ALREADY_OWNED`) + confirm() no frontend
-- **Self-referral** bloqueado (afiliado não pode usar o próprio código)
-- **Dedup de click** (1 por IP+code+24h)
-- **IP rate limit** em criação de conta (3 contas/IP/24h)
-- **Sanitização** centralizada em `packages/api-core/lib/sanitize.js` (HTML escape, URL allowlist, limites por campo)
-- **Headers**: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`
-- **Webhook secret** validado com `timingSafeEqual` (HMAC-safe)
-- **Dev creds escondidos** em produção via `IS_DEV` (localhost, *.vercel.app, ?dev=1)
-
-## Customização
-
-- **Produtos**: edite `packages/api-core/lib/seed-products.js` (roda 1x no primeiro boot)
-- **Admin padrão**: mude `ADMIN_EMAIL` / `ADMIN_PASSWORD` no `.env` antes do primeiro boot
-- **Comissão de afiliado**: 25% (default, configurável por afiliado em `users.affiliate_rate`)
-- **Modelo de comissão**: `AFFILIATE_NET_COMMISSION=true` (líquido, default) ou `false` (bruto). Configurável em `packages/api-core/lib/config.js`
-- **Taxa do gateway**: `GATEWAY_FEE_FIXED=0.80` (R$ por transação PIX). Configurável em `packages/api-core/lib/config.js`
-- **Impostos**: `TAX_RATE=0` (decimal, `0.06` = 6% Simples Nacional). Configurável em `packages/api-core/lib/config.js`
-- **Mínimo de saque**: `MIN_PAYOUT=10` (R$). Configurável em `packages/api-core/lib/config.js`
-- **Visual**: `public/css/style.css` e `public/css/account.css`
-- **Cache-bust**: scripts em `?v=20`, `style.css?v=11`
-
-## Estrutura
+## Estrutura do projeto
 
 ```
-.
-├── public/                # Frontend estático
-│   ├── index.html         # Loja (vitrine)
-│   ├── account.html       # Painel cliente/afiliado
-│   ├── admin.html         # Painel admin
-│   ├── download.html      # Gateway de download (valida token)
-│   ├── diag.html          # Diagnóstico do sistema
-│   ├── css/
-│   │   ├── style.css
-│   │   ├── account.css
-│   │   ├── admin.css
-│   │   └── download.css
-│   └── js/
-│       ├── data.js        # Fachada DB (cache + API + normalização snake↔camel)
-│       ├── store.js       # Lógica da loja + modal
-│       ├── account.js     # Painel cliente/afiliado
-│       ├── admin.js       # Painel admin
-│       ├── download.js    # Download gateway
-│       └── loading.js     # Helper de loading state
-├── api/                   # Backend (Vercel Serverless)
-│   ├── index.js           # Entry point Vercel (handler serverless)
-│   ├── server.js          # Express app + bootstrap (schema/admin/migrations)
-│   ├── .env.example
-│   ├── lib/
-│   │   ├── db.js          # Turso client + schema + migrations
-│   │   ├── auth.js        # bcrypt + JWT
-│   │   ├── mailer.js      # Brevo
-│   │   ├── payments.js    # AbacatePay PIX + checkPaymentStatus
-│   │   ├── config.js      # GATEWAY_FEE_FIXED, TAX_RATE, AFFILIATE_NET_COMMISSION, MIN_PAYOUT
-│   │   ├── fees.js        # calculateBreakdown() — comissão líquida
-│   │   ├── security.js    # rateLimit, timingSafeEqual
-│   │   ├── sanitize.js    # XSS, URL allowlist, LIMITS
-│   │   ├── github.js      # GitHub Releases
-│   │   ├── util.js        # uid, license, token, etc
-│   │   └── seed-products.js  # plugins seed
-│   └── routes/
-│       ├── auth.js
-│       ├── products.js
-│       ├── orders.js
-│       ├── affiliates.js
-│       └── admin.js
-├── vercel.json            # Config Vercel (rewrites, builds, cache)
-├── package.json           # Deps raiz
-└── README.md
+api/
+  index.js          # entrypoint Vercel
+  server.js         # servidor Express (dev local)
+  .env              # variáveis (não commitar)
+packages/
+  api-core/
+    lib/
+      db.js         # Turso + migrations
+      auth.js       # bcrypt + JWT
+      payments.js   # AbacatePay (legacy)
+      mercadopago.js # Mercado Pago
+      gateway.js    # abstração de gateway
+      jar-watermark.js # watermark + upload GitHub
+      mailer.js     # Brevo
+      sanitize.js   # validação de inputs
+      audit.js      # audit log
+      security.js   # headers
+      monitoring.js # performance + health
+    routes/
+      auth.js
+      products.js
+      orders.js
+      affiliates.js
+      admin.js
+      license.js
+      diag.js
+  cafe-license-java/ # SDK Java para validação
+public/
+  index.html        # loja
+  admin.html        # painel admin
+  account.html      # painel cliente/afiliado
+  download.html     # página de download
+  css/
+  js/
+    data.js         # camada de dados (API client)
+    store.js        # loja
+    admin.js        # painel admin
+```
+
+## Comandos
+
+```bash
+npm install        # instalar dependências
+node api/server.js # rodar localmente
+node --test        # testes
+npm run lint       # ESLint
+npm run format     # Prettier
 ```
 
 ## Licença
 
-MIT
+Proprietário — cafe plugins.

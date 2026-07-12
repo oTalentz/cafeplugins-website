@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/loading.css?v=13" />
-  <link rel="stylesheet" href="css/admin.css?v=19" />
+  <link rel="stylesheet" href="css/admin.css?v=20" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230a0a0a'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M24 8c0 3-3 5-3 8s3 5 3 8'/%3E%3Cpath d='M34 8c0 3-3 5-3 8s3 5 3 8'/%3E%3Cpath d='M14 22h26v22a6 6 0 0 1-6 6H20a6 6 0 0 1-6-6V22z'/%3E%3Cpath d='M40 28h7a5 5 0 0 1 5 5v3a5 5 0 0 1-5 5h-7'/%3E%3C/g%3E%3C/svg%3E" />
   <script>
     (function() {
@@ -51,7 +51,7 @@
         <input type="password" id="passInput" class="input" placeholder="••••••••" autocomplete="current-password" />
       </div>
       <button class="btn-full" id="loginBtn">Entrar</button>
-      <div class="login-hint">Senha padrão: <code>admin123</code></div>
+      <div class="login-hint">Esqueceu a senha? Use o fluxo de recuperação por e-mail na loja.</div>
       <div class="login-hint" style="margin-top:6px"><a href="index.html" style="color:var(--ink-3)">← Voltar para a loja</a></div>
     </div>
   </div>
@@ -189,7 +189,7 @@
             <p>Adicione, edite ou remova plugins da loja.</p>
           </div>
           <div style="display:flex; gap:8px">
-            <button class="btn btn-secondary" id="syncAbacateBtn">Sync AbacatePay</button>
+            <button class="btn btn-secondary" id="syncAbacateBtn">Sincronizar produtos</button>
             <button class="btn btn-primary" id="newProductBtn">+ Novo plugin</button>
           </div>
         </div>
@@ -348,13 +348,14 @@
         <div class="page-head">
           <div>
             <h1>Configurações</h1>
-            <p>Preferências da loja e dados locais.</p>
+            <p>Backup de dados, informações da loja e ações administrativas.</p>
           </div>
         </div>
+
         <div class="panel">
-          <div class="panel-head"><h2>Dados</h2></div>
+          <div class="panel-head"><h2>Backup de dados</h2></div>
           <div class="panel-body">
-            <p style="color:var(--ink-3); font-size:0.9375rem; margin-bottom:16px">Os dados são salvos no <strong>localStorage</strong> do navegador.</p>
+            <p style="color:var(--ink-3); font-size:0.9375rem; margin-bottom:16px">Exporte um snapshot JSON de usuários, pedidos, afiliados, payouts e produtos para backup local. A importação <strong>substitui</strong> os dados atuais — use com cuidado.</p>
             <div class="row" style="gap:8px; flex-wrap:wrap">
               <button class="btn btn-secondary" id="exportBtn">Exportar JSON</button>
               <label class="btn btn-secondary" style="cursor:pointer">
@@ -365,11 +366,13 @@
             </div>
           </div>
         </div>
+
         <div class="panel">
-          <div class="panel-head"><h2>Sobre</h2></div>
+          <div class="panel-head"><h2>Sobre a loja</h2></div>
           <div class="panel-body">
-            <p style="color:var(--ink-3); font-size:0.9375rem">cafe · admin — feito para lojas de plugins de Minecraft.</p>
-            <p style="color:var(--ink-3); font-size:0.9375rem; margin-top:8px">Senha padrão de demo: <code style="background:var(--bg-subtle); padding:2px 6px; border-radius:4px; color:var(--ink)">admin123</code></p>
+            <p style="color:var(--ink-3); font-size:0.9375rem"><strong>cafe plugins</strong> — loja de plugins de Minecraft com checkout via Mercado Pago (PIX + cartão), licenciamento com watermark, downloads via GitHub Releases e e-mails transacionais via Brevo.</p>
+            <p style="color:var(--ink-3); font-size:0.9375rem; margin-top:8px">Backend: Node.js + Express + Turso (libSQL). Frontend: HTML/CSS/JS vanilla. Deploy: Vercel.</p>
+            <p style="color:var(--ink-3); font-size:0.8125rem; margin-top:12px">Para diagnóstico em tempo real do backend (env, DB, Brevo, Mercado Pago, JWT), abra a aba <strong>API Health</strong>.</p>
           </div>
         </div>
       </section>
@@ -752,6 +755,6 @@
 
   <script src="js/loading.js?v=29"></script>
   <script src="js/data.js?v=33"></script>
-  <script src="js/admin.js?v=37"></script>
+  <script src="js/admin.js?v=38"></script>
 </body>
 </html>

@@ -3,6 +3,8 @@ import { envStatus, isReady, get, all } from 'api-core/lib/db.js';
 import { checkEnv, createLogger } from 'api-core/lib/logger.js';
 import { requireAdmin } from 'api-core/lib/auth.js';
 import { isValidEmail } from 'api-core/lib/util.js';
+import { paymentGateway, pixEnabled, cardEnabled } from 'api-core/lib/gateway.js';
+import { mercadoPagoEnabled } from 'api-core/lib/mercadopago.js';
 
 const router = Router();
 const log = createLogger('diag');
@@ -109,8 +111,17 @@ const OPTIONAL = [
   'BREVO_API_KEY',
   'BREVO_SENDER_EMAIL',
   'BREVO_SENDER_NAME',
+  'PAYMENT_GATEWAY',
+  'MERCADOPAGO_ACCESS_TOKEN',
+  'MERCADOPAGO_WEBHOOK_SECRET',
+  'MERCADOPAGO_URL',
   'ABACATE_API_KEY',
   'ABACATE_WEBHOOK_SECRET',
+  'MANUAL_PIX_KEY',
+  'GITHUB_TOKEN',
+  'GITHUB_PLUGIN_REPO',
+  'LICENSE_PRIVATE_KEY',
+  'LICENSE_PUBLIC_KEY',
   'APP_URL',
   'CORS_ORIGIN',
   'NODE_ENV'
@@ -263,6 +274,37 @@ router.get('/', requireAdmin, async (req, res) => {
   } else {
     result.checks.abacate = { ok: false, error: 'ABACATE_API_KEY não configurado' };
   }
+
+  // Teste Mercado Pago: valida o access token chamando /v1/payments/search (read-only)
+  if (mercadoPagoEnabled()) {
+    try {
+      const mpUrl = (process.env.MERCADOPAGO_URL || 'https://api.mercadopago.com')
+        + '/v1/payments/search?limit=1&sort=date_created&criteria=desc';
+      const r = await fetch(mpUrl, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` }
+      });
+      const body = await r.json().catch(() => ({}));
+      // 200 = token válido; 401/403 = token inválido
+      result.checks.mercadopago = {
+        ok: r.ok,
+        status: r.status,
+        ...(r.ok ? {} : { error: body?.message || `HTTP ${r.status}` })
+      };
+    } catch (e) {
+      result.checks.mercadopago = { ok: false, error: e.message };
+    }
+  } else {
+    result.checks.mercadopago = { ok: false, error: 'MERCADOPAGO_ACCESS_TOKEN não configurado' };
+  }
+
+  // Gateway ativo (resumo: qual gateway está em uso)
+  result.checks.gateway = {
+    ok: pixEnabled() || cardEnabled(),
+    active: paymentGateway(),
+    pix: pixEnabled(),
+    card: cardEnabled()
+  };
 
   result.duration_ms = Date.now() - t0;
   res.status(result.ok ? 200 : 503).json(result);
