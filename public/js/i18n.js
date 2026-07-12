@@ -23,7 +23,7 @@ const I18N = {
       'hero.lead': 'Plugins prontos, bem documentados e com suporte real. PvP, economia, facções, lobby e muito mais — tudo o que você precisa para um servidor que os jogadores não querem largar.',
       'hero.cta_primary': 'Ver plugins',
       'hero.cta_secondary': 'Como funciona',
-      'hero.stats.downloads': 'downloads',
+      'hero.stats.downloads': 'seguro',
       'hero.stats.rating': 'avaliação média',
       'hero.stats.support': 'suporte',
       
@@ -188,7 +188,7 @@ const I18N = {
       'hero.lead': 'Plugins prontos, bem documentados e com suporte real. PvP, economia, fações, lobby e muito mais — tudo o que precisa para um servidor que os jogadores não querem largar.',
       'hero.cta_primary': 'Ver plugins',
       'hero.cta_secondary': 'Como funciona',
-      'hero.stats.downloads': 'transferências',
+      'hero.stats.downloads': 'seguro',
       'hero.stats.rating': 'classificação média',
       'hero.stats.support': 'Suporte',
       
@@ -353,7 +353,7 @@ const I18N = {
       'hero.lead': 'Ready-to-use, well-documented plugins with real support. PvP, economy, factions, lobby and much more — everything you need for a server players won\'t want to leave.',
       'hero.cta_primary': 'Browse plugins',
       'hero.cta_secondary': 'How it works',
-      'hero.stats.downloads': 'downloads',
+      'hero.stats.downloads': 'safe',
       'hero.stats.rating': 'average rating',
       'hero.stats.support': 'support',
       
@@ -518,7 +518,7 @@ const I18N = {
       'hero.lead': 'Plugins listos, bien documentados y con soporte real. PvP, economía, facciones, lobby y mucho más — todo lo que necesitas para un servidor que los jugadores no querrán dejar.',
       'hero.cta_primary': 'Ver plugins',
       'hero.cta_secondary': 'Cómo funciona',
-      'hero.stats.downloads': 'descargas',
+      'hero.stats.downloads': 'seguro',
       'hero.stats.rating': 'valoración media',
       'hero.stats.support': 'Soporte',
       
