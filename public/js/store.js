@@ -764,7 +764,7 @@ function setupPainel() {
   $$('#painelModal [data-close]').forEach(b => b.onclick = () => modal.classList.remove('open'));
 
   if (window.__IS_DEV__) {
-    $$('#devCredsUser, #devCredsAdmin').forEach(el => { if (el) el.style.display = ''; });
+    $$('#devCredsUser').forEach(el => { if (el) el.style.display = ''; });
   }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && modal.classList.contains('open')) modal.classList.remove('open');
