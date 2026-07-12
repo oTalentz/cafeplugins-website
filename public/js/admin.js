@@ -408,6 +408,7 @@ function openProductModal(id = null) {
     form.tagline.value = p.tagline;
     form.description.value = p.description;
     form.video.value = p.video || '';
+    $('#productDownloadUrl').value = p.downloadUrl || '';
     form.downloadUrl.value = p.downloadUrl || '';
     form.price.value = p.price;
     form.oldPrice.value = p.oldPrice || '';
@@ -470,13 +471,39 @@ $('#saveProductBtn').onclick = async () => {
     maxDownloads: parseInt(f.maxDownloads.value) || 5,
     features: f.features.value.split('\n').map(s => s.trim()).filter(Boolean)
   };
+
+  const jarFile = f.jarFile.files[0];
+  const status = $('#jarUploadStatus');
+
   try {
     let result;
     if (editingId) {
       result = await DB.updateProduct(editingId, data);
-      toast('Plugin atualizado');
     } else {
       result = await DB.addProduct(data);
+    }
+
+    // Upload do JAR: o backend embute a public key e retorna a URL final
+    if (jarFile) {
+      status.textContent = 'Enviando JAR...';
+      const productId = result.product.id || editingId;
+      const upload = await DB.apiFetch(`/products/${productId}/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: jarFile
+      });
+      if (upload && upload.downloadUrl) {
+        data.downloadUrl = upload.downloadUrl;
+        await DB.updateProduct(productId, { downloadUrl: upload.downloadUrl });
+        status.textContent = 'JAR processado e enviado.';
+      } else {
+        status.textContent = 'Falha no upload do JAR.';
+      }
+    }
+
+    if (editingId) {
+      toast('Plugin atualizado');
+    } else {
       toast('Plugin criado');
     }
     // Feedback de sync com AbacatePay (cartão)

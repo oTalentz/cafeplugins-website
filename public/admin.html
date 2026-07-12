@@ -554,9 +554,11 @@
             <small style="display:block; margin-top:4px; color:var(--ink-3); font-size:0.75rem">Aceita YouTube (watch/shorts/embed), Vimeo ou link direto de .mp4/.webm</small>
           </div>
           <div class="field full">
-            <label>Link de download (opcional)</label>
-            <input name="downloadUrl" type="url" placeholder="https://drive.google.com/... ou .jar direto" />
-            <small style="display:block; margin-top:4px; color:var(--ink-3); font-size:0.75rem">URL enviado ao comprador após pagamento confirmado. Use link de download direto.</small>
+            <label>Arquivo .jar do plugin</label>
+            <input name="jarFile" type="file" accept=".jar" id="productJarFile" />
+            <input name="downloadUrl" type="hidden" id="productDownloadUrl" />
+            <div id="jarUploadStatus" style="margin-top:6px; font-size:0.8125rem; color:var(--ink-3)"></div>
+            <small style="display:block; margin-top:4px; color:var(--ink-3); font-size:0.75rem">O arquivo é processado automaticamente: a chave pública é embutida e o JAR é enviado para o GitHub.</small>
           </div>
           <div class="field">
             <label>Preço (R$)</label>

@@ -5,6 +5,7 @@ import { uid, nowISO } from 'api-core/lib/util.js';
 import { sanitizeIdentifier, sanitizeText, sanitizeUrl, LIMITS } from 'api-core/lib/sanitize.js';
 import { createAbacateProduct, deleteAbacateProduct } from 'api-core/lib/payments.js';
 import { createLogger } from 'api-core/lib/logger.js';
+import { embedPublicKeyInJar, uploadJarToGitHubRelease } from 'api-core/lib/jar-watermark.js';
 
 const router = Router();
 const log = createLogger('products');
@@ -225,5 +226,40 @@ function serialize(p, { admin = false } = {}) {
   }
   return out;
 }
+
+// Upload de JAR pelo painel admin: recebe o arquivo bruto, embute a public key
+// e o reenvia para uma release do GitHub configurada. A URL final é salva no produto.
+router.post('/:id/upload', requireAdmin, async (req, res) => {
+  const id = sanitizeIdentifier(req.params.id, { max: 64 });
+  if (!id) return res.status(400).json({ error: 'ID invalido' });
+  const product = await get('SELECT * FROM products WHERE id = ?', [id]);
+  if (!product) return res.status(404).json({ error: 'Produto não encontrado' });
+
+  const buffer = req.body;
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    return res.status(400).json({ error: 'Arquivo .jar não enviado ou vazio' });
+  }
+
+  log.info('upload de JAR recebido', { id, size: buffer.length });
+
+  try {
+    const withKey = embedPublicKeyInJar(buffer, id, process.env.APP_URL ? `${process.env.APP_URL}/api` : 'https://cafeplugins.com/api');
+    const version = `v${(product.version || '1.0').replace(/[^0-9.]/g, '')}`;
+    const downloadUrl = await uploadJarToGitHubRelease({
+      buffer: withKey,
+      productId: id,
+      productName: product.name,
+      version
+    });
+
+    await run('UPDATE products SET download_url = ?, updated_at = ? WHERE id = ?', [downloadUrl, nowISO(), id]);
+    const updated = await get('SELECT * FROM products WHERE id = ?', [id]);
+    log.info('JAR processado e URL salva', { id, downloadUrl });
+    res.json({ product: serialize(updated, { admin: true }), downloadUrl });
+  } catch (e) {
+    log.error('erro ao processar upload de JAR', { id, error: e.message });
+    return res.status(500).json({ error: e.message || 'Erro ao processar JAR' });
+  }
+});
 
 export default router;
