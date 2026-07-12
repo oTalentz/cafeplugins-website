@@ -224,6 +224,7 @@ function serialize(p, { admin = false } = {}) {
   try { features = JSON.parse(p.features || '[]'); } catch { features = []; }
   const out = {
     ...p,
+    author: 'Cafe-Plugins',
     price: Number(p.price),
     oldPrice: p.old_price != null ? Number(p.old_price) : null,
     stock: Number(p.stock || 0),

@@ -292,6 +292,7 @@ function renderOrders() {
     const item = o.items[0];
     const ic = (item?.name || '?').charAt(0).toUpperCase();
     const isPaid = o.status === 'pago';
+    const isFree = Number(o.total) === 0;
     const hasUrl = item?.downloadUrl;
     const isPix = o.payment === 'pix';
     const hasPixQr = !!o.pixQrCode;
@@ -306,7 +307,7 @@ function renderOrders() {
             <span>${brl(o.total)}</span>
             <span><span class="pill ${o.status === 'pago' ? 'ok' : o.status === 'pendente' ? 'warn' : 'danger'}">${escHtml(o.status)}</span></span>
             <span>${escHtml(o.paymentMethod || o.payment || 'pix')}</span>
-            ${isPaid ? `<span>Licença <code>${escHtml(o.licenseKey)}</code></span>` : ''}
+            ${isPaid && !isFree ? `<span>Licença <code>${escHtml(o.licenseKey)}</code></span>` : ''}
           </div>
         </div>
         <div class="order-actions">

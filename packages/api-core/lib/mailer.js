@@ -135,6 +135,10 @@ export function orderPaidEmail({ order, buyer, products }) {
   const downloadLink = order.download_token ? `${baseUrl}/download.html?t=${encodeURIComponent(order.download_token)}` : `${baseUrl}/account.html`;
   const safeOrderId = escapeHtml(order.id);
   const safeLicense = escapeHtml(order.license_key || '');
+  const isFree = Number(order.total) === 0;
+  const licenseLine = isFree
+    ? `<p style="color:#606060; font-size:12px; margin-top:24px">Pedido #${safeOrderId}</p>`
+    : `<p style="color:#606060; font-size:12px; margin-top:24px">Pedido #${safeOrderId} &middot; Licen&ccedil;a: <code>${safeLicense}</code></p>`;
   const html = `
     <div style="font-family:Inter,Helvetica,Arial,sans-serif; max-width:480px; margin:0 auto; padding:24px; background:#0a0a0a; color:#fafafa; border-radius:12px">
       <h2 style="margin:0 0 8px">Pagamento confirmado</h2>
@@ -147,7 +151,7 @@ export function orderPaidEmail({ order, buyer, products }) {
       <p style="text-align:center; margin:12px 0 0; font-size:12px">
         <a href="${escapeHtml(baseUrl + '/account.html')}" style="color:#a0a0a0; text-decoration:underline">ou acessar minha conta</a>
       </p>
-      <p style="color:#606060; font-size:12px; margin-top:24px">Pedido #${safeOrderId} &middot; Licen&ccedil;a: <code>${safeLicense}</code></p>
+      ${licenseLine}
     </div>
   `;
   return { subject: '[cafe plugins] Pagamento confirmado', html };

@@ -42,6 +42,13 @@ function renderReady(order) {
   const ic = (item.name || '?').charAt(0).toUpperCase();
   const downloadCount = order.downloadCount || (order.downloads || []).length;
   const maxDownloads = product && product.maxDownloads ? product.maxDownloads : (order.maxDownloads || 5);
+  const isFree = Number(item.price) === 0;
+  const author = (product && product.author) || 'Cafe-Plugins';
+  const licenseBlock = isFree ? '' : `
+    <div class="dl-key">
+      <span>Licença</span>
+      <code>${escHtml(order.licenseKey)}</code>
+    </div>`;
   $('#dlContent').innerHTML = `
     <div class="dl-ok-icon">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -54,13 +61,10 @@ function renderReady(order) {
       <div class="dl-product-ic">${escHtml(ic)}</div>
       <div class="dl-product-info">
         <strong>${escHtml(item.name)}</strong>
-        <small>Pedido ${escHtml(order.id)}</small>
+        <small>por ${escHtml(author)} · Pedido ${escHtml(order.id)}</small>
       </div>
     </div>
-    <div class="dl-key">
-      <span>Licença</span>
-      <code>${escHtml(order.licenseKey)}</code>
-    </div>
+    ${licenseBlock}
     <button id="dlBtn" class="btn btn-primary" style="width:100%; justify-content:center" ${downloadCount >= maxDownloads ? 'disabled' : ''}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
       Baixar ${escHtml(item.name)}

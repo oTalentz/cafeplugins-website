@@ -56,9 +56,15 @@ router.post('/verify', rateLimit({ scope: 'license:verify', windowMs: 60_000, ma
       return res.status(403).json({ valid: false, code: 'PLUGIN_NOT_OWNED', error: 'Licença não cobre este plugin' });
     }
 
-    const product = await get('SELECT id FROM products WHERE id = ? AND active = 1', [cleanPluginId]);
+    const product = await get('SELECT id, price FROM products WHERE id = ? AND active = 1', [cleanPluginId]);
     if (!product) {
       return res.status(403).json({ valid: false, code: 'PLUGIN_NOT_FOUND', error: 'Plugin não existe ou está inativo' });
+    }
+
+    // Plugins gratuitos (price=0): não exigem licença nem ativação por servidor.
+    // O cliente baixa e usa livremente, sem complicações.
+    if (Number(product.price) === 0) {
+      return res.json({ valid: true, free: true, token: null, expiresIn: null });
     }
 
     const existing = await all(

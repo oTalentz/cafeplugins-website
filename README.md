@@ -57,7 +57,8 @@ Loja completa para vender plugins de Minecraft com **downloads via GitHub Releas
 ### Backend
 - Migrations idempotentes (versionadas)
 - Validação e decremento de estoque
-- Watermark obrigatório no JAR (SDK Java bloqueia sem watermark válido)
+- Watermark obrigatório no JAR para plugins pagos (SDK Java bloqueia sem watermark válido)
+- Plugins gratuitos (price=0): download direto do JAR original, sem watermark nem licença
 - Proxy de capa: `/api/products/:id/cover` busca imagem do GitHub com token
 - Audit log de ações admin
 - Rate limiting em auth e webhooks

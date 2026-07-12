@@ -53,7 +53,7 @@ const I18N = {
       'faq.q3': 'Tem suporte?',
       'faq.a3': 'Suporte 24/7 no nosso Discord e por e-mail. Resposta média em 2 horas.',
       'faq.q4': 'Posso usar em vários servidores?',
-      'faq.a4': 'A licença padrão cobre 1 servidor. Para multi-servidor, fale com a gente — temos planos especiais.',
+      'faq.a4': 'Plugins gratuitos podem ser usados em quantos servidores quiser, sem licença. Plugins pagos cobrem 1 servidor; para multi-servidor, fale com a gente.',
       
       // Affiliates
       'aff.title': 'Indique e <span class="grad-word">ganhe</span>',
@@ -218,7 +218,7 @@ const I18N = {
       'faq.q3': 'Tem suporte?',
       'faq.a3': 'Suporte 24/7 no nosso Discord e por e-mail. Resposta média em 2 horas.',
       'faq.q4': 'Posso usar em vários servidores?',
-      'faq.a4': 'A licença padrão cobre 1 servidor. Para multi-servidor, fale connosco — temos planos especiais.',
+      'faq.a4': 'Plugins gratuitos podem ser usados em quantos servidores quiser, sem licença. Plugins pagos cobrem 1 servidor; para multi-servidor, fale connosco.',
       
       // Affiliates
       'aff.title': 'Indique e <span class="grad-word">ganhe</span>',
@@ -383,7 +383,7 @@ const I18N = {
       'faq.q3': 'Is there support?',
       'faq.a3': '24/7 support on our Discord and via email. Average response time is 2 hours.',
       'faq.q4': 'Can I use on multiple servers?',
-      'faq.a4': 'Standard license covers 1 server. For multi-server, contact us — we have special plans.',
+      'faq.a4': 'Free plugins can be used on as many servers as you want, no license needed. Paid plugins cover 1 server; for multi-server, contact us.',
       
       // Affiliates
       'aff.title': 'Refer and <span class="grad-word">earn</span>',
@@ -548,7 +548,7 @@ const I18N = {
       'faq.q3': '¿Hay soporte?',
       'faq.a3': 'Soporte 24/7 en nuestro Discord y por email. Tiempo medio de respuesta: 2 horas.',
       'faq.q4': '¿Puedo usar en varios servidores?',
-      'faq.a4': 'La licencia estándar cubre 1 servidor. Para multi-servidor, contáctanos — tenemos planes especiales.',
+      'faq.a4': 'Los plugins gratuitos se pueden usar en cuantos servidores quieras, sin licencia. Los plugins de pago cubren 1 servidor; para multi-servidor, contáctanos.',
       
       // Affiliates
       'aff.title': 'Refiere y <span class="grad-word">gana</span>',

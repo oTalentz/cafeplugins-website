@@ -158,6 +158,7 @@ function renderProducts(searchQuery = '') {
       <h3>${escHtml(p.name)}</h3>
       <p class="tagline">${escHtml(p.tagline)}</p>
       <div class="meta">
+        <span>por ${escHtml(p.author || 'Cafe-Plugins')}</span>
         <span>${escHtml(p.category)}</span>
         <span>${escHtml(p.version)}</span>
         ${p.video ? `<span title="Tem vídeo de demonstração"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg> Vídeo</span>` : ''}
@@ -268,6 +269,7 @@ function openProductModal(p) {
 
   $('#modalBody').innerHTML = `
     ${coverHTML}
+    <p style="color:var(--ink-3); margin-bottom:4px; font-size:0.8125rem">por <strong style="color:var(--ink-2)">${escHtml(p.author || 'Cafe-Plugins')}</strong></p>
     <p style="color:var(--ink-2); margin-bottom:8px; font-size:0.9375rem">${escHtml(p.description)}</p>
     <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; align-items:center">
       ${p.badge ? `<span class="badge ${badgeClass(p.badge)}">${escHtml(p.badge)}</span>` : ''}

@@ -351,3 +351,10 @@ export function filenameForDownload({ productName, productId }) {
     .replace(/[^a-zA-Z0-9_-]/g, '_');
   return `${safe}-licenciado.jar`;
 }
+
+export function filenameForFreeDownload({ productName, productId }) {
+  const safe = String(productName || productId)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `${safe}.jar`;
+}

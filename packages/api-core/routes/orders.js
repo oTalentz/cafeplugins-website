@@ -17,7 +17,7 @@ import { rateLimit, timingSafeEqual } from 'api-core/lib/security.js';
 import { calculateBreakdown } from 'api-core/lib/fees.js';
 import { createLogger } from 'api-core/lib/logger.js';
 import { PHONE_MIN_DIGITS, PHONE_MAX_DIGITS } from 'api-core/lib/config.js';
-import { createWatermarkedJar, filenameForDownload } from 'api-core/lib/jar-watermark.js';
+import { createWatermarkedJar, fetchOriginalJar, filenameForDownload, filenameForFreeDownload } from 'api-core/lib/jar-watermark.js';
 import { auditLog } from 'api-core/lib/audit.js';
 
 const router = Router();
@@ -644,25 +644,37 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
   }
 
   log.info('tentando gerar build watermarkada', { orderId: order.id, downloadUrl, productId: item.id });
+
+  // Plugins gratuitos (price=0): servem o JAR original diretamente, sem watermark
+  // e sem necessidade de licença. Download mais simples, sem complicações.
+  const isFree = Number(item.price) === 0;
   try {
-    const jar = await createWatermarkedJar({
-      originalUrl: downloadUrl,
-      licenseKey: order.license_key,
-      orderId: order.id,
-      buyerEmail: order.buyer_email,
-      productId: item.id
-    });
+    let jar;
+    let filename;
+    if (isFree) {
+      log.info('plugin gratuito: servindo JAR original sem watermark', { orderId: order.id, productId: item.id });
+      jar = await fetchOriginalJar(downloadUrl);
+      filename = filenameForFreeDownload({ productName: item.name, productId: item.id });
+    } else {
+      jar = await createWatermarkedJar({
+        originalUrl: downloadUrl,
+        licenseKey: order.license_key,
+        orderId: order.id,
+        buyerEmail: order.buyer_email,
+        productId: item.id
+      });
+      filename = filenameForDownload({ productName: item.name, productId: item.id });
+    }
 
     downloads.push({ ts: nowISO(), ip: req.ip, ua: (req.headers['user-agent'] || '').slice(0, 100) });
     await run('UPDATE orders SET downloads = ? WHERE id = ?', [JSON.stringify(downloads), order.id]);
 
-    const filename = filenameForDownload({ productName: item.name, productId: item.id });
     res.setHeader('Content-Type', 'application/java-archive');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', jar.length);
     res.end(jar);
   } catch (e) {
-    log.error('erro ao gerar JAR watermarkado', { orderId: order.id, error: e.message, stack: e.stack });
+    log.error('erro ao gerar JAR', { orderId: order.id, error: e.message, stack: e.stack });
     return res.status(500).json({ error: 'Erro ao gerar build do plugin: ' + e.message });
   }
 });
@@ -1076,6 +1088,7 @@ async function serializeDownloadOrder(o) {
     items: items.map(i => ({
       id: i.id,
       name: i.name,
+      price: Number(i.price) || 0,
       downloadUrl: i.downloadUrl || ''
     })),
     downloads: downloads.map(d => ({ ts: d.ts }))
