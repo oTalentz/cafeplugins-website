@@ -17,7 +17,7 @@ import { rateLimit, timingSafeEqual } from 'api-core/lib/security.js';
 import { calculateBreakdown } from 'api-core/lib/fees.js';
 import { createLogger } from 'api-core/lib/logger.js';
 import { PHONE_MIN_DIGITS, PHONE_MAX_DIGITS } from 'api-core/lib/config.js';
-import { createWatermarkedJar, filenameForDownload } from 'api-core/lib/jar-watermark.js';
+import { createWatermarkedJar, fetchOriginalJar, filenameForDownload } from 'api-core/lib/jar-watermark.js';
 
 const router = Router();
 const log = createLogger('orders');
@@ -637,8 +637,22 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
     res.setHeader('Content-Length', jar.length);
     res.end(jar);
   } catch (e) {
-    log.error('erro ao gerar JAR watermarkado', { orderId: order.id, error: e.message });
-    return res.status(500).json({ error: 'Erro ao gerar build do plugin' });
+    log.error('erro ao gerar JAR watermarkado, tentando fallback original', { orderId: order.id, error: e.message });
+    try {
+      const fallback = await fetchOriginalJar(item.downloadUrl);
+
+      downloads.push({ ts: nowISO(), ip: req.ip, ua: (req.headers['user-agent'] || '').slice(0, 100) });
+      await run('UPDATE orders SET downloads = ? WHERE id = ?', [JSON.stringify(downloads), order.id]);
+
+      const filename = filenameForDownload({ productName: item.name, productId: item.id });
+      res.setHeader('Content-Type', 'application/java-archive');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', fallback.length);
+      res.end(fallback);
+    } catch (fallbackErr) {
+      log.error('erro ao baixar JAR original no fallback', { orderId: order.id, error: fallbackErr.message });
+      return res.status(500).json({ error: 'Erro ao gerar build do plugin' });
+    }
   }
 });
 

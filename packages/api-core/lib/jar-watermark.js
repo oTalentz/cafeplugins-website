@@ -30,6 +30,37 @@ function writeEntry(zip, name, content) {
 }
 
 /**
+ * Baixa o JAR original a partir de uma URL pública (por exemplo, release do GitHub).
+ * Reutiliza a lógica de autenticação para repositórios privados.
+ */
+export async function fetchOriginalJar(originalUrl) {
+  const headers = {};
+  if (process.env.GITHUB_TOKEN && originalUrl.includes('github.com')) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    headers.Accept = 'application/octet-stream';
+  }
+  let res = await fetch(originalUrl, { redirect: 'manual', headers });
+  if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+    res = await fetch(res.headers.get('location'), { redirect: 'follow' });
+  }
+  if (!res.ok) {
+    throw new Error(`Falha ao baixar JAR original: ${res.status} ${res.statusText}`);
+  }
+
+  const jarBuffer = Buffer.from(await res.arrayBuffer());
+  if (!jarBuffer.length) {
+    throw new Error('JAR original veio vazio');
+  }
+
+  // Verifica magic number do ZIP (JAR é um ZIP)
+  if (jarBuffer[0] !== 0x50 || jarBuffer[1] !== 0x4B) {
+    throw new Error('JAR original não é um arquivo ZIP válido (pode ser HTML de redirect)');
+  }
+
+  return jarBuffer;
+}
+
+/**
  * Recebe um buffer de JAR e garante que o `cafe-license.yml` dentro dele
  * contenha a LICENSE_PUBLIC_KEY configurada no backend.
  * Isso permite que o admin envie o JAR bruto e o backend embarque a chave
@@ -176,28 +207,7 @@ export async function createWatermarkedJar({ originalUrl, licenseKey, orderId, b
 
   log.info('gerando build watermarkada', { orderId, productId, buyerEmail, originalUrl });
 
-  const headers = {};
-  if (process.env.GITHUB_TOKEN && originalUrl.includes('github.com')) {
-    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-    headers.Accept = 'application/octet-stream';
-  }
-  let res = await fetch(originalUrl, { redirect: 'manual', headers });
-  if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
-    res = await fetch(res.headers.get('location'), { redirect: 'follow' });
-  }
-  if (!res.ok) {
-    throw new Error(`Falha ao baixar JAR original: ${res.status} ${res.statusText}`);
-  }
-
-  const jarBuffer = Buffer.from(await res.arrayBuffer());
-  if (!jarBuffer.length) {
-    throw new Error('JAR original veio vazio');
-  }
-
-  // Verifica magic number do ZIP (JAR é um ZIP)
-  if (jarBuffer[0] !== 0x50 || jarBuffer[1] !== 0x4B) {
-    throw new Error('JAR original não é um arquivo ZIP válido (pode ser HTML de redirect)');
-  }
+  const jarBuffer = await fetchOriginalJar(originalUrl);
 
   let zip;
   try {
