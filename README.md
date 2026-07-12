@@ -1,6 +1,6 @@
 # cafe plugins — Loja de Plugins Minecraft
 
-Loja completa para vender plugins de Minecraft com **downloads via GitHub Releases**, **pagamento via Mercado Pago** (PIX transparente + cartão), **e-mails transacionais** (Brevo), **banco de dados gerenciado** (Turso / libSQL), **programa de afiliados** com payouts via PIX, **licenciamento com watermark** (JWT assinado embutido no JAR) e **SDK Java** para validação offline. Inclui painel do cliente/afiliado e painel admin.
+Loja completa para vender plugins de Minecraft com **downloads via GitHub Releases**, **pagamento via Mercado Pago** (PIX transparente + cartão), **e-mails transacionais** (Brevo), **banco de dados gerenciado** (Turso / libSQL), **programa de afiliados** com payouts via PIX, **licenciamento com watermark** (JWT assinado embutido no JAR) e **SDK Java** para validação de licenças. Inclui painel do cliente/afiliado e painel admin.
 
 ```
 +------------------+        +------------------+        +-------------------+
@@ -58,7 +58,6 @@ Loja completa para vender plugins de Minecraft com **downloads via GitHub Releas
 - Migrations idempotentes (versionadas)
 - Validação e decremento de estoque
 - Watermark obrigatório no JAR (SDK Java bloqueia sem watermark válido)
-- Fallback de download: serve JAR original se watermark falhar
 - Proxy de capa: `/api/products/:id/cover` busca imagem do GitHub com token
 - Audit log de ações admin
 - Rate limiting em auth e webhooks
@@ -72,12 +71,12 @@ npm install
 
 # 2. Configurar variáveis
 cp api/.env.example api/.env
-# edite api/.env com as chaves reais (Turso já vem preenchido)
+# edite api/.env com as chaves reais (Turso, JWT_SECRET, ADMIN_PASSWORD, etc.)
 
 # 3. Rodar
 node api/server.js
 # servidor em http://localhost:3000
-# admin padrão: admin@cafeplugins.com / senha definida em ADMIN_PASSWORD
+# admin definido em ADMIN_EMAIL / ADMIN_PASSWORD no .env
 ```
 
 A primeira execução cria as tabelas (com migrations idempotentes), o admin e os produtos de seed.
@@ -86,8 +85,8 @@ A primeira execução cria as tabelas (com migrations idempotentes), o admin e o
 
 | Variável | Obrigatório | Descrição |
 |---|---|---|
-| `TURSO_URL` | ✅ | URL do banco (já configurado) |
-| `TURSO_TOKEN` | ✅ | Token JWT do Turso (já configurado) |
+| `TURSO_URL` | ✅ | URL do banco (ex: `libsql://...turso.io`) |
+| `TURSO_TOKEN` | ✅ | Token de acesso do Turso |
 | `JWT_SECRET` | ✅ | String aleatória **≥32 chars** em produção (default bloqueado) |
 | `ADMIN_EMAIL` | ✅ | E-mail do admin criado no bootstrap |
 | `ADMIN_PASSWORD` | ✅ | Senha do admin (mín. 12 chars em produção) |
@@ -100,11 +99,15 @@ A primeira execução cria as tabelas (com migrations idempotentes), o admin e o
 | `MERCADOPAGO_WEBHOOK_SECRET` | ❌ | Secret para validar assinatura dos webhooks (`x-signature`) |
 | `MERCADOPAGO_URL` | ❌ | Default: `https://api.mercadopago.com` |
 | `MERCADOPAGO_SANDBOX` | ❌ | `true` para usar URLs de teste do Checkout Pro |
+| `ABACATE_API_KEY` | ❌ | Chave da AbacatePay (apenas se `PAYMENT_GATEWAY=abacate`) |
+| `ABACATE_WEBHOOK_SECRET` | ❌ | HMAC-SHA256 do body via header `x-webhook-signature` |
 | `MANUAL_PIX_KEY` | ❌ | PIX manual para modo stub (fallback) |
 | `GITHUB_TOKEN` | ❌ | Necessário para upload de JARs e capas pelo admin |
 | `GITHUB_PLUGIN_REPO` | ❌ | Repo onde JARs/capas são armazenados (default: `oTalentz/Bestiary-Plugin-CafePlugins2026`) |
 | `LICENSE_PRIVATE_KEY` | ❌ | Chave privada RS256 (PEM) para assinar watermarks e licenças |
 | `LICENSE_PUBLIC_KEY` | ❌ | Chave pública RS256 (PEM) embutida nos JARs |
+| `LICENSE_TOKEN_TTL` | ❌ | Validade do token de licença (default: `7d`) |
+| `LICENSE_ACTIVATION_LIMIT` | ❌ | Máximo de servidores ativos por licença (default: `1`) |
 | `APP_URL` | ❌ | URL pública (ex: `https://cafeplugins.com`) — links de e-mail e download |
 | `CORS_ORIGIN` | ❌ | Lista separada por vírgula. Em prod, defina o domínio final |
 | `GATEWAY_FEE_FIXED` | ❌ | Taxa fixa do gateway PIX em R$ (default: `0.80`) — cálculo de comissão líquida |
@@ -122,6 +125,8 @@ A primeira execução cria as tabelas (com migrations idempotentes), o admin e o
 - `POST /login` — `{ email, password }` → `{ token, user }`
 - `POST /request-code` — envia código de 6 dígitos por e-mail (login ou reset)
 - `POST /verify-code` — `{ email, code, purpose }` → login ou reset
+- `POST /verify-email` — verifica e-mail com código (pós-registro)
+- `POST /resend-verification` — reenvia código de verificação
 - `POST /reset-password` — `{ email, code, newPassword }`
 - `POST /change-password` — `{ currentPassword, newPassword }` (auth)
 - `GET  /me` — usuário logado (auth)
@@ -133,25 +138,30 @@ A primeira execução cria as tabelas (com migrations idempotentes), o admin e o
 - `GET  /:id/cover` — proxy de capa (busca imagem do GitHub com token, retorna como imagem pública)
 - `POST /` — criar (admin)
 - `PUT  /:id` — atualizar (admin)
-- `POST /:id/upload-jar` — upload de JAR (admin, embute chave pública e envia para GitHub)
+- `POST /:id/upload` — upload de JAR (admin, embute chave pública e envia para GitHub)
 - `POST /:id/upload-cover` — upload de capa/banner (admin, envia para GitHub)
 - `GET  /:id/test-download` — testa se o JAR está acessível (admin)
 - `DELETE /:id` — deletar (admin)
 
 ### Pedidos (`/api/orders/*`)
 - `POST /checkout` — `{ name, email, items, affiliateCode?, paymentMethod? }` → cria pedido + PIX/cartão + cookie 30d do afiliado. Retorna `breakdown` com `subtotal/gatewayFee/netAmount/commission/commissionRate/storeKeeps`, além de `checkoutUrl` (cartão), `pixQrCode`, `pixQrImage` e `pixExpiresAt` (PIX)
+- `POST /webhook` — webhook da AbacatePay (legacy, validação HMAC `x-abacate-signature`)
 - `POST /webhook/mercadopago` — webhook do Mercado Pago: evento `order` (Orders API) ou `payment` (Checkout Pro), validação `x-signature`
 - `POST /:id/confirm` — confirma manual (admin)
 - `PATCH /:id` — atualiza status (admin, transições validadas)
-- `GET  /:id/renew-download` — renova token de download (admin)
+- `POST /:id/renew-download` — renova token de download (admin)
+- `GET  /:id/return` — redirect pós-checkout cartão (redireciona para `account.html`)
 - `GET  /me` — meus pedidos (auth)
 - `GET  /affiliate` — pedidos indicados pelo meu código (auth)
 - `GET  /:id` — detalhe (dono ou admin; inclui `breakdown`)
-- `GET  /:id/status` — status (dono via auth, ou guest com `?email=` exato)
+- `GET  /:id/status` — status (dono via auth ou admin)
 - `GET  /:id/download-token` — token curto p/ download (dono)
 - `GET  /:id/download?t=` — download do JAR watermarked (dono)
 - `GET  /by-token?t=` — lookup público (apenas pedidos pagos)
 - `GET  /` — todos (admin; cada order inclui `breakdown`)
+- `DELETE /:id` — soft delete (admin, vai para lixeira)
+- `DELETE /trash/empty` — esvazia lixeira (admin)
+- `POST /:id/restore` — restaura da lixeira (admin)
 
 ### Afiliados (`/api/affiliates/*`)
 - `POST /become` — ativa conta de afiliado (gera código único)
@@ -171,29 +181,33 @@ A primeira execução cria as tabelas (com migrations idempotentes), o admin e o
 ### Admin (`/api/admin/*`)
 - `GET  /stats` — contadores gerais
 - `GET  /users` — lista de usuários
+- `GET  /users/:id` — detalhe de usuário
 - `DELETE /users/:id` — excluir (bloqueia último admin)
 - `POST /orders` — cria pedido manual (admin)
 - `POST /sync-products` — sincroniza produtos com gateway de cartão
 - `POST /cleanup` — limpa dados de teste
+- `GET  /audit-log` — log de ações admin
 
 ### Licenças (`/api/license/*`)
-- `POST /validate` — valida licença + server-id (usado pelo SDK Java)
+- `POST /verify` — valida licença + server-id (usado pelo SDK Java)
 - `GET  /activations` — lista ativações (admin)
-- `DELETE /activations/:id` — revoga ativação (admin)
+- `POST /activations/:id/revoke` — revoga ativação (admin)
 
 ### Diagnóstico
-- `GET  /api/diag` — verifica env, DB, Brevo, Mercado Pago e JWT (admin)
+- `GET  /api/diag` — verifica env, DB, Brevo, Mercado Pago, gateway ativo e JWT (admin)
 - `GET  /api/health` — health check simples
+- `GET  /api/diag/env` — status público das env vars (sem segredos)
 
 Todos os endpoints `/api/admin/*` e mutações admin exigem `Authorization: Bearer <token>` de um usuário com `role: admin`.
 
 ## Cadastros externos necessários
 
-A loja funciona **100% em modo stub** (sem nenhum cadastro externo) — mas para produção, você precisa destes serviços:
+A loja funciona sem Mercado Pago, Brevo ou GitHub (esses caem em modo stub automaticamente) — mas **Turso é obrigatório**. Para produção completa, você precisa destes serviços:
 
-### 1. Turso (banco)
-Já configurado. O schema é criado com migrations idempotentes no primeiro boot.
-👉 [app.turso.tech](https://app.turso.tech)
+### 1. Turso (banco — obrigatório)
+- Crie conta em [app.turso.tech](https://app.turso.tech)
+- Crie um banco e copie `TURSO_URL` e `TURSO_TOKEN` para o `.env`
+- O schema é criado com migrations idempotentes no primeiro boot
 
 ### 2. Brevo (e-mail)
 - Crie conta grátis em [brevo.com](https://www.brevo.com) — 300 e-mails/dia grátis
@@ -226,23 +240,22 @@ openssl rsa -in private.pem -pubout -out public.pem
 
 ## SDK Java (licenciamento)
 
-O SDK em `packages/cafe-license-java/` valida licenças e watermarks offline:
+O SDK em `packages/cafe-license-java/` valida licenças online (chama a API) e valida o watermark offline (JWT embutido no JAR). O desenvolvedor do plugin coloca um arquivo `cafe-license.yml` dentro do JAR com `product-id`, `api-url` e `public-key`.
 
 ```java
-CafeLicense license = CafeLicense.builder()
-    .licenseKey("PF-XXXX-XXXX-XXXX")
-    .serverId("my-server")
-    .apiUrl("https://cafeplugins.com/api")
-    .build();
+// No onEnable do plugin:
+@Override
+public void onEnable() {
+    saveDefaultConfig();
+    String licenseKey = getConfig().getString("license-key", "");
+    CafeLicense.verify(this, licenseKey);
+}
 
-// Validação inicial (online ou offline com watermark)
-license.validate();
-
-// Re-verificação periódica (opcional)
-CafeLicense.startPeriodicCheck(license, 24); // a cada 24h
+// Re-verificação periódica (opcional, em minutos):
+CafeLicense.startPeriodicCheck(this, licenseKey, 30); // a cada 30 min
 ```
 
-O watermark (`cafe-watermark.jwt`) é embutido no JAR pelo backend no momento do download. Sem ele, o plugin **não funciona**.
+O watermark (`cafe-watermark.jwt`) é embutido no JAR pelo backend no momento do download. Sem ele, o plugin **não funciona** — apenas builds baixadas oficialmente pela loja funcionam.
 
 ## Deploy na Vercel
 
@@ -252,30 +265,39 @@ O watermark (`cafe-watermark.jwt`) é embutido no JAR pelo backend no momento do
 4. Deploy — o schema é criado automaticamente no primeiro boot
 
 O `vercel.json` já está configurado com:
-- Serverless Function em `api/index.js` (maxDuration 30s)
+- Serverless Function em `api/index.js` (maxDuration 60s, região `pdx1`)
 - Rewrites: `/api/(.*)` → `/api/index`, `/(.*)` → `/index.html`
+- Headers de cache para assets estáticos e security headers para `/api/*`
+- `cleanUrls: true`, `trailingSlash: false`
 
 ## Estrutura do projeto
 
 ```
 api/
-  index.js          # entrypoint Vercel
-  server.js         # servidor Express (dev local)
-  .env              # variáveis (não commitar)
+  index.js            # entrypoint Vercel
+  server.js           # servidor Express (dev local)
+  .env                # variáveis (não commitar)
 packages/
   api-core/
     lib/
-      db.js         # Turso + migrations
-      auth.js       # bcrypt + JWT
-      payments.js   # AbacatePay (legacy)
-      mercadopago.js # Mercado Pago
-      gateway.js    # abstração de gateway
+      db.js           # Turso + migrations
+      auth.js         # bcrypt + JWT
+      payments.js     # AbacatePay (legacy/fallback)
+      mercadopago.js  # Mercado Pago
+      gateway.js      # abstração de gateway
+      fees.js         # cálculo de comissão líquida
       jar-watermark.js # watermark + upload GitHub
-      mailer.js     # Brevo
-      sanitize.js   # validação de inputs
-      audit.js      # audit log
-      security.js   # headers
-      monitoring.js # performance + health
+      github.js       # API do GitHub (releases)
+      mailer.js       # Brevo
+      codes.js        # códigos de verificação por e-mail
+      sanitize.js     # validação de inputs
+      audit.js        # audit log
+      security.js     # headers + rate limiting
+      monitoring.js   # performance + health
+      logger.js       # logging estruturado
+      config.js       # constantes de config
+      util.js         # helpers (uid, licenseKey, etc.)
+      seed-products.js # produtos de seed
     routes/
       auth.js
       products.js
@@ -284,17 +306,26 @@ packages/
       admin.js
       license.js
       diag.js
-  cafe-license-java/ # SDK Java para validação
+  cafe-license-java/  # SDK Java para validação
 public/
-  index.html        # loja
-  admin.html        # painel admin
-  account.html      # painel cliente/afiliado
-  download.html     # página de download
+  index.html          # loja
+  admin.html          # painel admin
+  account.html        # painel cliente/afiliado
+  download.html       # página de download
   css/
+    style.css         # loja
+    admin.css         # painel admin
+    account.css       # painel cliente
+    download.css      # página de download
+    loading.css       # spinners/skeletons
   js/
-    data.js         # camada de dados (API client)
-    store.js        # loja
-    admin.js        # painel admin
+    data.js           # camada de dados (API client)
+    store.js          # loja
+    admin.js          # painel admin
+    account.js        # painel cliente/afiliado
+    download.js       # página de download
+    i18n.js           # internacionalização (pt-BR, en, es)
+    loading.js        # helpers de loading
 ```
 
 ## Comandos
@@ -303,7 +334,6 @@ public/
 npm install        # instalar dependências
 node api/server.js # rodar localmente
 node --test        # testes
-npm run lint       # ESLint
 npm run format     # Prettier
 ```
 
