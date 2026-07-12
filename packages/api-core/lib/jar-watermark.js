@@ -37,19 +37,46 @@ async function fetchWithHeaders(originalUrl, headers) {
   let res = await fetch(originalUrl, { redirect: 'manual', headers });
   if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
     log.info('redirect detectado no JAR original', { status: res.status, location: res.headers.get('location') });
+    // Follow redirect WITHOUT auth headers (signed URL already has token in query string)
     res = await fetch(res.headers.get('location'), { redirect: 'follow' });
   }
   return res;
 }
 
 export async function fetchOriginalJar(originalUrl) {
-  const isGitHub = originalUrl.includes('github.com');
+  const isGitHubApi = originalUrl.includes('api.github.com') && originalUrl.includes('/releases/assets/');
+  const isGitHubWeb = originalUrl.includes('github.com') && originalUrl.includes('/releases/download/');
   const token = process.env.GITHUB_TOKEN;
 
-  // Para URLs do GitHub, tenta com token (privado) e depois sem token (publico).
-  // O token pode estar invalido ou o repo pode ser publico, entao o fallback sem token evita 404.
+  // Para repos privados, a browser_download_url (github.com/.../releases/download/...)
+  // nao funciona com bearer token — o GitHub retorna 404.
+  // A solucao e converter para a API URL (api.github.com/.../releases/assets/{id})
+  // que aceita bearer token e redireciona para uma URL assinada.
+  if (isGitHubWeb && token) {
+    try {
+      const match = originalUrl.match(/github\.com\/([^/]+\/[^/]+)\/releases\/download\/([^/]+)\/(.+)$/);
+      if (match) {
+        const [, repo, tag, filename] = match;
+        log.info('convertendo URL web para API', { originalUrl, repo, tag, filename });
+        const releaseRes = await fetch(`https://api.github.com/repos/${repo}/releases/tags/${tag}`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'cafe-plugins' }
+        });
+        if (releaseRes.ok) {
+          const releaseData = await releaseRes.json();
+          const asset = (releaseData.assets || []).find(a => a.name === filename);
+          if (asset && asset.url) {
+            log.info('asset encontrado via API', { assetId: asset.id, apiUrl: asset.url });
+            originalUrl = asset.url;
+          }
+        }
+      }
+    } catch (e) {
+      log.warn('falha ao converter URL web para API', { error: e.message });
+    }
+  }
+
   const attempts = [];
-  if (isGitHub && token) {
+  if (token && (isGitHubApi || isGitHubWeb || originalUrl.includes('api.github.com'))) {
     attempts.push({
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/octet-stream', 'User-Agent': 'cafe-plugins' },
       withToken: true
@@ -62,7 +89,7 @@ export async function fetchOriginalJar(originalUrl) {
 
   let lastErr = null;
   for (const attempt of attempts) {
-    log.info('baixando JAR original', { originalUrl, withToken: attempt.withToken, isGitHub });
+    log.info('baixando JAR original', { originalUrl, withToken: attempt.withToken });
     try {
       const res = await fetchWithHeaders(originalUrl, attempt.headers);
       if (!res.ok) {
@@ -201,9 +228,12 @@ export async function uploadJarToGitHubRelease({ buffer, productId, productName,
     throw new Error(`Erro ao fazer upload do JAR: ${uploadRes.status} ${uploadRes.statusText} - ${errText.slice(0, 200)}`);
   }
   const asset = await uploadRes.json();
-  log.info('asset criado no GitHub', { assetId: asset.id, name: asset.name, state: asset.state, url: asset.url, browser_download_url: asset.browser_download_url });
+  log.info('asset criado no GitHub', { assetId: asset.id, name: asset.name, state: asset.state, apiUrl: asset.url, browser_download_url: asset.browser_download_url });
 
-  let downloadUrl = asset.browser_download_url;
+  // Para repos privados, a browser_download_url (github.com/...) nao funciona
+  // com bearer token — o GitHub retorna 404. Usamos a API URL (api.github.com/...)
+  // que aceita bearer token e redireciona para uma URL assinada.
+  const downloadUrl = asset.url || asset.browser_download_url;
 
   // O GitHub pode demorar alguns segundos para propagar o asset apos o upload.
   // Espera e tenta baixar a URL para garantir que ela ja esta acessivel.
@@ -215,14 +245,13 @@ export async function uploadJarToGitHubRelease({ buffer, productId, productName,
       return downloadUrl;
     } catch (err) {
       log.warn('aguardando propagacao do asset no GitHub', { downloadUrl, attempt: i + 1, error: err.message });
-      // Reconsulta o asset pela API para pegar a URL mais recente (o GitHub pode alterar apos processamento)
+      // Reconsulta o asset pela API para pegar a URL mais recente
       try {
         const assetCheck = await fetch(asset.url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } });
         if (assetCheck.ok) {
           const assetData = await assetCheck.json();
-          if (assetData.browser_download_url && assetData.browser_download_url !== downloadUrl) {
-            log.info('URL do asset atualizada pela API', { oldUrl: downloadUrl, newUrl: assetData.browser_download_url });
-            downloadUrl = assetData.browser_download_url;
+          if (assetData.url && assetData.url !== downloadUrl) {
+            log.info('URL do asset atualizada pela API', { oldUrl: downloadUrl, newUrl: assetData.url });
           }
         }
       } catch (apiErr) {
