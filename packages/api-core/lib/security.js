@@ -22,7 +22,7 @@ function _now() { return Date.now(); }
 export function rateLimit({ scope, windowMs = 60_000, max = 5, message = 'Muitas requisições. Tente novamente em instantes.' } = {}) {
   return async (req, res, next) => {
     try {
-    const id = req.ip || req.headers['x-forwarded-for'] || 'anon';
+    const id = req.ip || req.socket?.remoteAddress || 'anon';
     const key = _key(scope, id);
     const now = _now();
     const windowStart = Math.floor(now / windowMs) * windowMs;

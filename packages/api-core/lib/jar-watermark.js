@@ -44,6 +44,32 @@ async function fetchWithHeaders(originalUrl, headers) {
 }
 
 export async function fetchOriginalJar(originalUrl) {
+  // SSRF protection: só permite domínios conhecidos (GitHub e CDN próprio)
+  const ALLOWED_HOSTS = [
+    'github.com',
+    'api.github.com',
+    'objects.githubusercontent.com',
+    'githubusercontent.com',
+    'cafeplugins.com',
+    'www.cafeplugins.com'
+  ];
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(originalUrl);
+  } catch (e) {
+    throw new Error(`URL inválida para download de JAR: ${e.message}`);
+  }
+  const hostname = parsedUrl.hostname.toLowerCase();
+  const isAllowed = ALLOWED_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h));
+  if (!isAllowed) {
+    throw new Error(`Domínio não permitido para download de JAR: ${hostname}`);
+  }
+  // Bloqueia IPs internos (SSRF para metadata services, localhost, etc)
+  const isInternalIp = /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[01])\.|0\.|localhost)/i.test(hostname);
+  if (isInternalIp) {
+    throw new Error(`IP interno bloqueado por proteção SSRF: ${hostname}`);
+  }
+
   const isGitHubApi = originalUrl.includes('api.github.com') && originalUrl.includes('/releases/assets/');
   const isGitHubWeb = originalUrl.includes('github.com') && originalUrl.includes('/releases/download/');
   const token = process.env.GITHUB_TOKEN;

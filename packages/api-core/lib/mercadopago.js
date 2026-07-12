@@ -347,6 +347,14 @@ export function verifyWebhookSignature(xSignature, xRequestId, dataId, secret) {
     const v1 = parts.v1;
     if (!ts || !v1) return false;
 
+    // Replay attack protection: rejeita webhooks com timestamp muito antigo (>5min)
+    // ou no futuro (>1min, tolerância de clock skew)
+    const tsNum = Number(ts);
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (!isFinite(tsNum)) return false;
+    if (tsNum < nowSec - 300) return false; // mais de 5 min atrás
+    if (tsNum > nowSec + 60) return false;  // mais de 1 min no futuro
+
     const manifestParts = [];
     if (dataId) manifestParts.push(`id:${String(dataId)}`);
     if (xRequestId) manifestParts.push(`request-id:${xRequestId}`);

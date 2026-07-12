@@ -26,10 +26,15 @@ function normalizeRecipients(to) {
   const list = Array.isArray(to) ? to : [to];
   return list.map(item => {
     if (typeof item === 'string') {
-      return { email: item.trim().toLowerCase() };
+      const email = item.trim().toLowerCase();
+      // CRLF injection protection: bloqueia \r\n que poderia adicionar BCC/CC
+      if (/[\r\n]/.test(email)) return null;
+      return { email };
     }
     if (item && typeof item === 'object' && item.email) {
-      return { email: String(item.email).trim().toLowerCase(), name: item.name };
+      const email = String(item.email).trim().toLowerCase();
+      if (/[\r\n]/.test(email)) return null;
+      return { email, name: item.name };
     }
     return null;
   }).filter(Boolean);

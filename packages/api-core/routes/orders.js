@@ -375,7 +375,7 @@ router.post('/webhook', webhookLimiter, async (req, res) => {
 
   await markOrderPaid(order.id);
   const updated = await get('SELECT * FROM orders WHERE id = ?', [order.id]);
-  res.json({ ok: true, orderId: order.id, license: updated.license_key });
+  res.json({ ok: true, orderId: order.id });
 });
 
 // Webhook do Mercado Pago
@@ -450,7 +450,7 @@ router.post('/webhook/mercadopago', webhookLimiter, async (req, res) => {
 
   await markOrderPaid(order.id);
   const updated = await get('SELECT * FROM orders WHERE id = ?', [order.id]);
-  res.json({ ok: true, orderId: order.id, license: updated.license_key });
+  res.json({ ok: true, orderId: order.id });
 });
 
 // Confirmação manual (admin) — use apenas como override operacional

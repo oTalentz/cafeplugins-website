@@ -183,18 +183,31 @@ async function syncAbacateProducts() {
 
 export async function createApp() {
   const app = express();
-  app.set('trust proxy', true);
+  // Vercel usa 1 proxy hop. Confiar em todos (true) permite IP spoofing.
+  app.set('trust proxy', 1);
 
   // Middleware de performance/monitoramento em todas as rotas
   app.use(performanceMiddleware);
 
   // Raw body para webhooks (precisamos do JSON bruto para validar HMAC)
+  // Limite de 1MB para evitar DoS via payloads gigantes
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/orders/webhook')) {
       let data = '';
+      let size = 0;
+      const MAX_WEBHOOK_SIZE = 1 * 1024 * 1024; // 1MB
       req.setEncoding('utf8');
-      req.on('data', chunk => { data += chunk; });
+      req.on('data', chunk => {
+        size += chunk.length;
+        if (size > MAX_WEBHOOK_SIZE) {
+          if (!res.headersSent) res.status(413).json({ error: 'Payload too large' });
+          req.destroy();
+          return;
+        }
+        data += chunk;
+      });
       req.on('end', () => {
+        if (size > MAX_WEBHOOK_SIZE) return; // já rejeitado
         req.rawBody = data;
         try { req.body = data ? JSON.parse(data) : {}; } catch { req.body = {}; }
         next();
@@ -223,10 +236,11 @@ export async function createApp() {
   const corsList = CORS_ORIGINS.filter(s => s !== '*'); // HIGH-16: '*' removido por segurança
   app.use(cors({
     origin: (origin, cb) => {
-      if (!origin) return cb(null, true); // mobile/curl sem origin
-      if (corsList.length === 0) return cb(null, false); // sem origins permitidos
+      // Sem origin = requisição não-browser (curl, mobile app, server-to-server)
+      // Permite porque CORS só protege browsers. curl/mobile não respeitam CORS.
+      if (!origin) return cb(null, true);
+      if (corsList.length === 0) return cb(null, false);
       if (corsList.includes(origin)) return cb(null, true);
-      // Bloqueia silenciosamente
       return cb(null, false);
     },
     credentials: true,
