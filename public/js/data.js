@@ -153,7 +153,15 @@ function normalizeProduct(p) {
 function getStoredUser() { try { return JSON.parse(sessionStorage.getItem(USER_KEY) || 'null'); } catch { return null; } }
 
 async function api(path, opts = {}) {
-  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  const rawBody = opts.body && (
+    (typeof Blob !== 'undefined' && opts.body instanceof Blob) ||
+    (typeof File !== 'undefined' && opts.body instanceof File) ||
+    (typeof FormData !== 'undefined' && opts.body instanceof FormData) ||
+    opts.body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(opts.body) ||
+    typeof opts.body === 'string'
+  );
+  const headers = { ...(rawBody ? {} : { 'Content-Type': 'application/json' }), ...(opts.headers || {}) };
   const token = getToken();
   if (token) headers.Authorization = 'Bearer ' + token;
   let r;
@@ -161,7 +169,7 @@ async function api(path, opts = {}) {
     r = await fetch(API_BASE + path, {
       method: opts.method || 'GET',
       headers,
-      body: opts.body ? JSON.stringify(opts.body) : undefined
+      body: rawBody ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined)
     });
   } catch (netErr) {
     const e = new Error('Sem conexão com o servidor');
