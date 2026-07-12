@@ -204,9 +204,9 @@ export async function createApp() {
     }
   });
 
-  // Upload de JAR: aceita body raw (application/octet-stream) com limite de 32MB.
+  // Upload de JAR: aceita body raw (qualquer content-type) com limite de 32MB.
   // O Vercel Hobby limita payload em ~4.5MB; planos Pro/Enterprise permitem mais.
-  app.use('/api/products/', express.raw({ limit: '32mb', type: 'application/octet-stream' }));
+  app.use('/api/products/:id/upload', express.raw({ limit: '32mb', type: () => true }));
 
   app.use(express.json({ limit: '256kb' })); // reduzido de 1mb
 
