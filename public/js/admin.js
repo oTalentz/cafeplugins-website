@@ -474,6 +474,8 @@ $('#saveProductBtn').onclick = async () => {
 
   const jarFile = f.jarFile.files[0];
   const status = $('#jarUploadStatus');
+  status.textContent = '';
+  status.style.color = '';
 
   try {
     let result;
@@ -486,6 +488,7 @@ $('#saveProductBtn').onclick = async () => {
     // Upload do JAR: o backend embute a public key e retorna a URL final
     if (jarFile) {
       status.textContent = 'Enviando JAR...';
+      status.style.color = 'var(--info)';
       const productId = result.product.id || editingId;
       const upload = await DB.apiFetch(`/products/${productId}/upload`, {
         method: 'POST',
@@ -495,9 +498,16 @@ $('#saveProductBtn').onclick = async () => {
       if (upload && upload.downloadUrl) {
         data.downloadUrl = upload.downloadUrl;
         await DB.updateProduct(productId, { downloadUrl: upload.downloadUrl });
-        status.textContent = 'JAR processado e enviado.';
+        status.textContent = `JAR processado e enviado: ${upload.downloadUrl}`;
+        status.style.color = 'var(--success)';
+        toast('JAR enviado e vinculado ao plugin', true);
+        // Atualiza o campo oculto para refletir a URL gerada
+        $('#productDownloadUrl').value = upload.downloadUrl;
+        f.downloadUrl.value = upload.downloadUrl;
       } else {
         status.textContent = 'Falha no upload do JAR.';
+        status.style.color = 'var(--error)';
+        toast('Falha no upload do JAR', false);
       }
     }
 
@@ -517,6 +527,8 @@ $('#saveProductBtn').onclick = async () => {
     $('#productModal').classList.remove('open');
     renderAll();
   } catch (err) {
+    status.textContent = 'Erro ao salvar plugin.';
+    status.style.color = 'var(--error)';
     toast(err.message || 'Erro ao salvar plugin', false);
   }
 };

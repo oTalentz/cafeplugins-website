@@ -240,10 +240,11 @@ router.post('/:id/upload', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Arquivo .jar não enviado ou vazio' });
   }
 
-  log.info('upload de JAR recebido', { id, size: buffer.length });
+  log.info('upload de JAR recebido', { id, size: buffer.length, productName: product.name, version: product.version });
 
   try {
     const withKey = embedPublicKeyInJar(buffer, id, process.env.APP_URL ? `${process.env.APP_URL}/api` : 'https://cafeplugins.com/api');
+    log.info('JAR com chave publica gerado', { id, size: withKey.length });
     const version = `v${(product.version || '1.0').replace(/[^0-9.]/g, '')}`;
     const downloadUrl = await uploadJarToGitHubRelease({
       buffer: withKey,
@@ -257,7 +258,7 @@ router.post('/:id/upload', requireAdmin, async (req, res) => {
     log.info('JAR processado e URL salva', { id, downloadUrl });
     res.json({ product: serialize(updated, { admin: true }), downloadUrl });
   } catch (e) {
-    log.error('erro ao processar upload de JAR', { id, error: e.message });
+    log.error('erro ao processar upload de JAR', { id, error: e.message, stack: e.stack });
     return res.status(500).json({ error: e.message || 'Erro ao processar JAR' });
   }
 });

@@ -611,8 +611,8 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
 
   const items = JSON.parse(order.items || '[]');
   const item = items[0];
-  if (!item || !item.downloadUrl) {
-    log.warn('download rejeitado: downloadUrl não configurado', { orderId: order.id, item });
+  if (!item || !item.id) {
+    log.warn('download rejeitado: item do pedido inválido', { orderId: order.id, item });
     return res.status(404).json({ error: 'Arquivo do plugin não configurado' });
   }
 
@@ -625,10 +625,18 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
     return res.status(403).json({ error: 'Limite de downloads atingido para esta compra.', code: 'DOWNLOAD_LIMIT_REACHED' });
   }
 
-  log.info('tentando gerar build watermarkada', { orderId: order.id, downloadUrl: item.downloadUrl, productId: item.id });
+  // Sempre usa o download_url MAIS RECENTE do produto, nao o salvo no pedido.
+  // Isso garante que reuploads/admin atualizacoes sejam refletidos em pedidos antigos.
+  const downloadUrl = (product && product.download_url) ? product.download_url : item.downloadUrl;
+  if (!downloadUrl) {
+    log.warn('download rejeitado: downloadUrl nao configurado', { orderId: order.id, productId: item.id });
+    return res.status(404).json({ error: 'Arquivo do plugin nao configurado' });
+  }
+
+  log.info('tentando gerar build watermarkada', { orderId: order.id, downloadUrl, productId: item.id });
   try {
     const jar = await createWatermarkedJar({
-      originalUrl: item.downloadUrl,
+      originalUrl: downloadUrl,
       licenseKey: order.license_key,
       orderId: order.id,
       buyerEmail: order.buyer_email,
@@ -646,7 +654,7 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
   } catch (e) {
     log.error('erro ao gerar JAR watermarkado, tentando fallback original', { orderId: order.id, error: e.message, stack: e.stack });
     try {
-      const fallback = await fetchOriginalJar(item.downloadUrl);
+      const fallback = await fetchOriginalJar(downloadUrl);
 
       downloads.push({ ts: nowISO(), ip: req.ip, ua: (req.headers['user-agent'] || '').slice(0, 100) });
       await run('UPDATE orders SET downloads = ? WHERE id = ?', [JSON.stringify(downloads), order.id]);
