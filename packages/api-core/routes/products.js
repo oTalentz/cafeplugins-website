@@ -304,6 +304,50 @@ router.get('/:id/test-download', requireAdmin, async (req, res) => {
   }
 });
 
+// Proxy de capa: busca a imagem do GitHub (que pode estar em repo privado) com
+// token e retorna como imagem publica. Permite usar <img src="/api/products/:id/cover">
+// na loja sem expor o GITHUB_TOKEN.
+router.get('/:id/cover', async (req, res) => {
+  const id = sanitizeIdentifier(req.params.id, { max: 64 });
+  if (!id) return res.status(400).json({ error: 'ID invalido' });
+  const p = await get('SELECT cover_image FROM products WHERE id = ? AND active = 1', [id]);
+  if (!p || !p.cover_image) return res.status(404).json({ error: 'Sem capa' });
+  const coverUrl = p.cover_image;
+  try {
+    // Tenta baixar a capa (fetchOriginalJar reusa logica de auth para GitHub)
+    // mas precisamos do buffer bruto, sem validacao de ZIP.
+    const token = process.env.GITHUB_TOKEN;
+    let res2;
+    const isApi = coverUrl.includes('api.github.com');
+    const headers = isApi && token
+      ? { Authorization: `Bearer ${token}`, Accept: 'application/octet-stream', 'User-Agent': 'cafe-plugins' }
+      : { 'User-Agent': 'cafe-plugins' };
+    res2 = await fetch(coverUrl, { redirect: 'manual', headers });
+    if (res2.status >= 300 && res2.status < 400 && res2.headers.get('location')) {
+      // Redirect do GitHub para URL assinada — segue sem headers de auth
+      res2 = await fetch(res2.headers.get('location'), { redirect: 'follow' });
+    }
+    if (!res2.ok) {
+      return res.status(502).json({ error: 'Falha ao buscar capa no GitHub: ' + res2.status });
+    }
+    const buf = Buffer.from(await res2.arrayBuffer());
+    if (!buf.length) return res.status(502).json({ error: 'Capa veio vazia' });
+    // Detecta content type pelo magic number
+    let ct = 'image/png';
+    if (buf[0] === 0xFF && buf[1] === 0xD8) ct = 'image/jpeg';
+    else if (buf[0] === 0x89 && buf[1] === 0x50) ct = 'image/png';
+    else if (buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP') ct = 'image/webp';
+    else if (buf.slice(0, 6).toString('ascii') === 'GIF87a' || buf.slice(0, 6).toString('ascii') === 'GIF89a') ct = 'image/gif';
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+    res.setHeader('Content-Length', buf.length);
+    return res.send(buf);
+  } catch (e) {
+    log.error('erro no proxy de capa', { id, coverUrl, error: e.message });
+    return res.status(502).json({ error: 'Erro ao buscar capa: ' + e.message });
+  }
+});
+
 // Upload de capa/banner do produto: recebe a imagem bruta e envia para uma
 // release do GitHub (mesmo bucket dos JARs). A URL final é salva no produto.
 router.post('/:id/upload-cover', requireAdmin, async (req, res) => {

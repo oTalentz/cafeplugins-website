@@ -139,11 +139,12 @@ function renderProducts(searchQuery = '') {
   list.forEach(p => {
     const card = document.createElement('article');
     card.className = 'product-card';
-    const cover = p.coverImage || p.cover_image || '';
-    const coverHTML = cover
-      ? `<div class="cover" style="position:relative; margin:-16px -16px 12px -16px; height:120px; overflow:hidden; border-radius:12px 12px 0 0; background:var(--surface-2)">
-           <img src="${escHtml(cover)}" alt="${escHtml(p.name)}" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block" onerror="this.parentElement.style.display='none'" />
-         </div>`
+    const hasCover = !!(p.coverImage || p.cover_image);
+    const coverUrl = hasCover
+      ? `${(window.PF_API_BASE || '/api')}/products/${encodeURIComponent(p.id)}/cover`
+      : '';
+    const coverHTML = hasCover
+      ? `<div class="card-cover"><img src="${escHtml(coverUrl)}" alt="${escHtml(p.name)}" loading="lazy" onerror="this.parentElement.style.display='none'" /></div>`
       : '';
     card.innerHTML = `
       ${coverHTML}
@@ -246,11 +247,12 @@ function openProductModal(p) {
   $('#modalPrice').innerHTML = `${brl(p.price)}${p.oldPrice ? ` <small style="color:var(--ink-3); text-decoration:line-through; font-size:0.875rem; font-weight:400; margin-left:4px">${brl(p.oldPrice)}</small>` : ''}`;
 
   const video = DB.parseVideoUrl(p.video);
-  const cover = p.coverImage || p.cover_image || '';
-  const coverHTML = cover
-    ? `<div class="cover-modal" style="margin:-20px -24px 16px -24px; height:200px; overflow:hidden; border-radius:12px 12px 0 0; background:var(--surface-2)">
-         <img src="${escHtml(cover)}" alt="${escHtml(p.name)}" style="width:100%; height:100%; object-fit:cover; display:block" onerror="this.parentElement.style.display='none'" />
-       </div>`
+  const hasCover = !!(p.coverImage || p.cover_image);
+  const coverUrl = hasCover
+    ? `${(window.PF_API_BASE || '/api')}/products/${encodeURIComponent(p.id)}/cover`
+    : '';
+  const coverHTML = hasCover
+    ? `<div class="modal-cover"><img src="${escHtml(coverUrl)}" alt="${escHtml(p.name)}" onerror="this.parentElement.style.display='none'" /></div>`
     : '';
   const videoHTML = video
     ? `<div class="video-label">

@@ -356,15 +356,17 @@ function renderProducts() {
     const synced = !!p.abacateProductId;
     const hasJar = !!(p.downloadUrl || p.download_url);
     const hasCover = !!(p.coverImage || p.cover_image);
-    const coverUrl = p.coverImage || p.cover_image || '';
+    const coverProxyUrl = hasCover
+      ? `${(window.PF_API_BASE || '/api')}/products/${encodeURIComponent(p.id)}/cover`
+      : '';
     const jarPill = hasJar
       ? '<span class="pill ok" title="JAR vinculado e pronto para download">JAR ✓</span>'
       : '<span class="pill warn" title="Sem JAR — faça upload do .jar no editar">JAR ✗</span>';
     const coverPill = hasCover
       ? '<span class="pill ok" title="Capa/banner definido">Capa ✓</span>'
       : '<span class="pill warn" title="Sem capa — faça upload no editar">Capa ✗</span>';
-    const iconHtml = coverUrl
-      ? `<div class="ic" style="padding:0; overflow:hidden"><img src="${escHtml(coverUrl)}" alt="${escHtml(p.name)}" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block" onerror="this.style.display='none'; this.parentElement.classList.add('no-cover')" /></div>`
+    const iconHtml = hasCover
+      ? `<div class="ic" style="padding:0; overflow:hidden"><img src="${escHtml(coverProxyUrl)}" alt="${escHtml(p.name)}" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block" onerror="this.style.display='none'; this.parentElement.innerHTML='${escHtml((p.name || '?').charAt(0))}'" /></div>`
       : `<div class="ic">${escHtml((p.name || '?').charAt(0))}</div>`;
     return `
     <tr>
@@ -453,10 +455,13 @@ function openProductModal(id = null) {
     // Capa existente
     const coverPreview = $('#coverPreview');
     const coverPreviewImg = $('#coverPreviewImg');
-    const coverUrl = p.coverImage || (p.cover_image) || '';
-    $('#productCoverUrl').value = coverUrl;
-    if (coverUrl) {
-      coverPreviewImg.src = coverUrl;
+    const hasCover = !!(p.coverImage || p.cover_image);
+    const coverProxyUrl = hasCover
+      ? `${(window.PF_API_BASE || '/api')}/products/${encodeURIComponent(p.id)}/cover`
+      : '';
+    $('#productCoverUrl').value = p.coverImage || p.cover_image || '';
+    if (hasCover) {
+      coverPreviewImg.src = coverProxyUrl;
       coverPreview.style.display = 'block';
     } else {
       coverPreview.style.display = 'none';
