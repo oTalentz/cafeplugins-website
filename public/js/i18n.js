@@ -45,15 +45,15 @@ const I18N = {
       'hiw.step3.desc': 'Solte o .jar em /plugins, reinicie e aproveite.',
       
       // FAQ
-      'faq.title': 'Perguntas frequentes',
-      'faq.q1': 'Os plugins recebem atualizações?',
-      'faq.a1': 'Sim. Todas as compras incluem 1 ano de updates. Você pode renovar com 50% de desconto.',
-      'faq.q2': 'Funciona em qual versão do Minecraft?',
-      'faq.a2': 'A maioria suporta 1.16+ até a versão mais recente. Cada plugin mostra sua compatibilidade no card.',
-      'faq.q3': 'Tem suporte?',
-      'faq.a3': 'Suporte 24/7 no nosso Discord e por e-mail. Resposta média em 2 horas.',
-      'faq.q4': 'Posso usar em vários servidores?',
-      'faq.a4': 'Plugins gratuitos podem ser usados em quantos servidores quiser, sem licença. Plugins pagos cobrem 1 servidor; para multi-servidor, fale com a gente.',
+      'faq.title': 'FAQ',
+      'faq.q1': 'Como recebo o plugin após a compra?',
+      'faq.a1': 'Você recebe um e-mail com o link de download. A licença já vem embutida no plugin.',
+      'faq.q2': 'Quais formas de pagamento?',
+      'faq.a2': 'PIX (confirmação automática) e cartão de crédito.',
+      'faq.q3': 'Funciona offline?',
+      'faq.a3': 'Sim. A licença é validada na inicialização e periodicamente, mas o plugin funciona normalmente entre as verificações.',
+      'faq.q4': 'Posso pedir reembolso?',
+      'faq.a4': 'Não. Por se tratar de um produto digital, não oferecemos reembolso após o download. Em caso de problema técnico, entre em contato pelo suporte.',
       
       // Affiliates
       'aff.title': 'Indique e <span class="grad-word">ganhe</span>',
@@ -210,15 +210,15 @@ const I18N = {
       'hiw.step3.desc': 'Coloque o .jar em /plugins, reinicie e aproveite.',
       
       // FAQ
-      'faq.title': 'Perguntas frequentes',
-      'faq.q1': 'Os plugins recebem atualizações?',
-      'faq.a1': 'Sim. Todas as compras incluem 1 ano de atualizações. Pode renovar com 50% de desconto.',
-      'faq.q2': 'Funciona em qual versão do Minecraft?',
-      'faq.a2': 'A maioria suporta 1.16+ até à versão mais recente. Cada plugin mostra a sua compatibilidade no cartão.',
-      'faq.q3': 'Tem suporte?',
-      'faq.a3': 'Suporte 24/7 no nosso Discord e por e-mail. Resposta média em 2 horas.',
-      'faq.q4': 'Posso usar em vários servidores?',
-      'faq.a4': 'Plugins gratuitos podem ser usados em quantos servidores quiser, sem licença. Plugins pagos cobrem 1 servidor; para multi-servidor, fale connosco.',
+      'faq.title': 'FAQ',
+      'faq.q1': 'Como recebo o plugin após a compra?',
+      'faq.a1': 'Recebe um e-mail com o link de download. A licença já vem embutida no plugin.',
+      'faq.q2': 'Quais formas de pagamento?',
+      'faq.a2': 'PIX (confirmação automática) e cartão de crédito.',
+      'faq.q3': 'Funciona offline?',
+      'faq.a3': 'Sim. A licença é validada na inicialização e periodicamente, mas o plugin funciona normalmente entre as verificações.',
+      'faq.q4': 'Posso pedir reembolso?',
+      'faq.a4': 'Não. Por se tratar de um produto digital, não oferecemos reembolso após o download. Em caso de problema técnico, contacte o suporte.',
       
       // Affiliates
       'aff.title': 'Indique e <span class="grad-word">ganhe</span>',
@@ -375,15 +375,15 @@ const I18N = {
       'hiw.step3.desc': 'Drop the .jar in /plugins, restart and enjoy.',
       
       // FAQ
-      'faq.title': 'Frequently asked questions',
-      'faq.q1': 'Do plugins receive updates?',
-      'faq.a1': 'Yes. All purchases include 1 year of updates. You can renew with 50% discount.',
-      'faq.q2': 'Which Minecraft version is supported?',
-      'faq.a2': 'Most support 1.16+ up to the latest version. Each plugin shows its compatibility on the card.',
-      'faq.q3': 'Is there support?',
-      'faq.a3': '24/7 support on our Discord and via email. Average response time is 2 hours.',
-      'faq.q4': 'Can I use on multiple servers?',
-      'faq.a4': 'Free plugins can be used on as many servers as you want, no license needed. Paid plugins cover 1 server; for multi-server, contact us.',
+      'faq.title': 'FAQ',
+      'faq.q1': 'How do I get the plugin after purchase?',
+      'faq.a1': 'You receive an email with the download link. The license is already embedded in the plugin.',
+      'faq.q2': 'What payment methods?',
+      'faq.a2': 'PIX (automatic confirmation) and credit card.',
+      'faq.q3': 'Does it work offline?',
+      'faq.a3': 'Yes. The license is validated on startup and periodically, but the plugin works normally between checks.',
+      'faq.q4': 'Can I get a refund?',
+      'faq.a4': 'No. As this is a digital product, we do not offer refunds after download. For technical issues, contact support.',
       
       // Affiliates
       'aff.title': 'Refer and <span class="grad-word">earn</span>',
@@ -540,15 +540,15 @@ const I18N = {
       'hiw.step3.desc': 'Coloca el .jar en /plugins, reinicia y disfruta.',
       
       // FAQ
-      'faq.title': 'Preguntas frecuentes',
-      'faq.q1': '¿Los plugins reciben actualizaciones?',
-      'faq.a1': 'Sí. Todas las compras incluyen 1 año de actualizaciones. Puedes renovar con 50% de descuento.',
-      'faq.q2': '¿Qué versión de Minecraft es compatible?',
-      'faq.a2': 'La mayoría soporta 1.16+ hasta la versión más reciente. Cada plugin muestra su compatibilidad en la tarjeta.',
-      'faq.q3': '¿Hay soporte?',
-      'faq.a3': 'Soporte 24/7 en nuestro Discord y por email. Tiempo medio de respuesta: 2 horas.',
-      'faq.q4': '¿Puedo usar en varios servidores?',
-      'faq.a4': 'Los plugins gratuitos se pueden usar en cuantos servidores quieras, sin licencia. Los plugins de pago cubren 1 servidor; para multi-servidor, contáctanos.',
+      'faq.title': 'FAQ',
+      'faq.q1': '¿Cómo recibo el plugin después de la compra?',
+      'faq.a1': 'Recibes un correo con el enlace de descarga. La licencia ya viene integrada en el plugin.',
+      'faq.q2': '¿Qué métodos de pago?',
+      'faq.a2': 'PIX (confirmación automática) y tarjeta de crédito.',
+      'faq.q3': '¿Funciona offline?',
+      'faq.a3': 'Sí. La licencia se valida al iniciar y periódicamente, pero el plugin funciona normalmente entre verificaciones.',
+      'faq.q4': '¿Puedo pedir reembolso?',
+      'faq.a4': 'No. Al tratarse de un producto digital, no ofrecemos reembolso después de la descarga. Para problemas técnicos, contacta al soporte.',
       
       // Affiliates
       'aff.title': 'Refiere y <span class="grad-word">gana</span>',
