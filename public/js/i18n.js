@@ -47,7 +47,7 @@ const I18N = {
       // FAQ
       'faq.title': 'FAQ',
       'faq.q1': 'Como recebo o plugin após a compra?',
-      'faq.a1': 'Você recebe um e-mail com o link de download. A licença já vem embutida no plugin.',
+      'faq.a1': 'Após o pagamento, você recebe o link de download por e-mail e também na sua conta, na seção "Minhas compras". A licença já vem embutida no plugin.',
       'faq.q2': 'Quais formas de pagamento?',
       'faq.a2': 'PIX (confirmação automática) e cartão de crédito.',
       'faq.q3': 'Funciona offline?',
@@ -212,7 +212,7 @@ const I18N = {
       // FAQ
       'faq.title': 'FAQ',
       'faq.q1': 'Como recebo o plugin após a compra?',
-      'faq.a1': 'Recebe um e-mail com o link de download. A licença já vem embutida no plugin.',
+      'faq.a1': 'Após o pagamento, recebe o link de download por e-mail e também na sua conta, na secção "Minhas compras". A licença já vem embutida no plugin.',
       'faq.q2': 'Quais formas de pagamento?',
       'faq.a2': 'PIX (confirmação automática) e cartão de crédito.',
       'faq.q3': 'Funciona offline?',
@@ -377,7 +377,7 @@ const I18N = {
       // FAQ
       'faq.title': 'FAQ',
       'faq.q1': 'How do I get the plugin after purchase?',
-      'faq.a1': 'You receive an email with the download link. The license is already embedded in the plugin.',
+      'faq.a1': 'After payment, you receive the download link by email and in your account under "My purchases". The license is already embedded in the plugin.',
       'faq.q2': 'What payment methods?',
       'faq.a2': 'PIX (automatic confirmation) and credit card.',
       'faq.q3': 'Does it work offline?',
@@ -542,7 +542,7 @@ const I18N = {
       // FAQ
       'faq.title': 'FAQ',
       'faq.q1': '¿Cómo recibo el plugin después de la compra?',
-      'faq.a1': 'Recibes un correo con el enlace de descarga. La licencia ya viene integrada en el plugin.',
+      'faq.a1': 'Después del pago, recibes el enlace de descarga por correo y también en tu cuenta, en la sección "Mis compras". La licencia ya viene integrada en el plugin.',
       'faq.q2': '¿Qué métodos de pago?',
       'faq.a2': 'PIX (confirmación automática) y tarjeta de crédito.',
       'faq.q3': '¿Funciona offline?',
