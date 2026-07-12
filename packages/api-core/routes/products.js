@@ -5,7 +5,7 @@ import { uid, nowISO } from 'api-core/lib/util.js';
 import { sanitizeIdentifier, sanitizeText, sanitizeUrl, LIMITS } from 'api-core/lib/sanitize.js';
 import { createAbacateProduct, deleteAbacateProduct } from 'api-core/lib/payments.js';
 import { createLogger } from 'api-core/lib/logger.js';
-import { embedPublicKeyInJar, uploadJarToGitHubRelease } from 'api-core/lib/jar-watermark.js';
+import { embedPublicKeyInJar, uploadJarToGitHubRelease, fetchOriginalJar } from 'api-core/lib/jar-watermark.js';
 
 const router = Router();
 const log = createLogger('products');
@@ -253,6 +253,18 @@ router.post('/:id/upload', requireAdmin, async (req, res) => {
       version
     });
 
+    // Verifica se a URL gerada realmente é acessivel antes de salvar no banco.
+    // Se o GitHub ainda nao propagou o asset ou o token nao consegue baixar,
+    // evitamos salvar uma URL quebrada.
+    log.info('verificando acessibilidade da URL gerada', { id, downloadUrl });
+    try {
+      const testBuffer = await fetchOriginalJar(downloadUrl);
+      log.info('URL gerada acessivel', { id, downloadUrl, size: testBuffer.length });
+    } catch (verifyErr) {
+      log.error('URL gerada nao esta acessivel', { id, downloadUrl, error: verifyErr.message });
+      throw new Error(`Upload criado, mas a URL nao esta acessivel: ${verifyErr.message}`);
+    }
+
     await run('UPDATE products SET download_url = ?, updated_at = ? WHERE id = ?', [downloadUrl, nowISO(), id]);
     const updated = await get('SELECT * FROM products WHERE id = ?', [id]);
     log.info('JAR processado e URL salva', { id, downloadUrl });
@@ -260,6 +272,23 @@ router.post('/:id/upload', requireAdmin, async (req, res) => {
   } catch (e) {
     log.error('erro ao processar upload de JAR', { id, error: e.message, stack: e.stack });
     return res.status(500).json({ error: e.message || 'Erro ao processar JAR' });
+  }
+});
+
+// Diagnostico: admin testa se o download_url do produto é acessivel
+router.get('/:id/test-download', requireAdmin, async (req, res) => {
+  const id = sanitizeIdentifier(req.params.id, { max: 64 });
+  if (!id) return res.status(400).json({ error: 'ID invalido' });
+  const product = await get('SELECT * FROM products WHERE id = ?', [id]);
+  if (!product) return res.status(404).json({ error: 'Produto nao encontrado' });
+  if (!product.download_url) return res.status(400).json({ ok: false, error: 'Produto nao tem download_url configurado' });
+
+  try {
+    const buf = await fetchOriginalJar(product.download_url);
+    res.json({ ok: true, downloadUrl: product.download_url, size: buf.length, validJar: buf[0] === 0x50 && buf[1] === 0x4B });
+  } catch (e) {
+    log.error('diagnostico de download falhou', { id, downloadUrl: product.download_url, error: e.message });
+    res.status(502).json({ ok: false, downloadUrl: product.download_url, error: e.message });
   }
 });
 

@@ -371,6 +371,9 @@ function renderProducts() {
         : '<span class="pill warn" title="Sem sync com AbacatePay — cartão indisponível para este plugin. Clique em Sync AbacatePay acima.">Sem sync</span>'}</td>
       <td style="text-align:right">
         <div class="actions justify-end">
+          <button class="icon-btn" data-test="${p.id}" title="Testar download">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
           <button class="icon-btn" data-edit="${p.id}" title="Editar">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
@@ -382,6 +385,19 @@ function renderProducts() {
     </tr>`;
   }).join('');
 
+  $$('[data-test]').forEach(b => b.onclick = async () => {
+    const productId = b.dataset.test;
+    try {
+      const r = await DB.apiFetch('/products/' + productId + '/test-download');
+      if (r.ok) {
+        toast(`Download OK (${r.size} bytes) - ${r.downloadUrl}`, true);
+      } else {
+        toast(`Download falhou: ${r.error || 'desconhecido'}`, false);
+      }
+    } catch (err) {
+      toast(`Erro no teste: ${err.message || 'desconhecido'}`, false);
+    }
+  });
   $$('[data-edit]').forEach(b => b.onclick = () => openProductModal(b.dataset.edit));
   $$('[data-del]').forEach(b => b.onclick = async () => {
     if (confirm('Excluir este plugin?')) {
