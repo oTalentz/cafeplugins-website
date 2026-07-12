@@ -197,10 +197,13 @@ export async function uploadJarToGitHubRelease({ buffer, productId, productName,
     body: buffer
   });
   if (!uploadRes.ok) {
-    throw new Error(`Erro ao fazer upload do JAR: ${uploadRes.status}`);
+    const errText = await uploadRes.text().catch(() => '');
+    throw new Error(`Erro ao fazer upload do JAR: ${uploadRes.status} ${uploadRes.statusText} - ${errText.slice(0, 200)}`);
   }
   const asset = await uploadRes.json();
-  const downloadUrl = asset.browser_download_url;
+  log.info('asset criado no GitHub', { assetId: asset.id, name: asset.name, state: asset.state, url: asset.url, browser_download_url: asset.browser_download_url });
+
+  let downloadUrl = asset.browser_download_url;
 
   // O GitHub pode demorar alguns segundos para propagar o asset apos o upload.
   // Espera e tenta baixar a URL para garantir que ela ja esta acessivel.
@@ -212,6 +215,19 @@ export async function uploadJarToGitHubRelease({ buffer, productId, productName,
       return downloadUrl;
     } catch (err) {
       log.warn('aguardando propagacao do asset no GitHub', { downloadUrl, attempt: i + 1, error: err.message });
+      // Reconsulta o asset pela API para pegar a URL mais recente (o GitHub pode alterar apos processamento)
+      try {
+        const assetCheck = await fetch(asset.url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } });
+        if (assetCheck.ok) {
+          const assetData = await assetCheck.json();
+          if (assetData.browser_download_url && assetData.browser_download_url !== downloadUrl) {
+            log.info('URL do asset atualizada pela API', { oldUrl: downloadUrl, newUrl: assetData.browser_download_url });
+            downloadUrl = assetData.browser_download_url;
+          }
+        }
+      } catch (apiErr) {
+        log.warn('nao foi possivel reconsultar asset no GitHub', { error: apiErr.message });
+      }
       if (i < 4) await wait(2000);
     }
   }
