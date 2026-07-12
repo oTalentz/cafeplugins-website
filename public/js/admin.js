@@ -434,13 +434,46 @@ function openProductModal(id = null) {
     form.stock.value = p.stock || 999;
     form.maxDownloads.value = p.maxDownloads || 5;
     form.features.value = (p.features || []).join('\n');
+    // Capa existente
+    const coverPreview = $('#coverPreview');
+    const coverPreviewImg = $('#coverPreviewImg');
+    const coverUrl = p.coverImage || (p.cover_image) || '';
+    $('#productCoverUrl').value = coverUrl;
+    if (coverUrl) {
+      coverPreviewImg.src = coverUrl;
+      coverPreview.style.display = 'block';
+    } else {
+      coverPreview.style.display = 'none';
+    }
+    $('#coverUploadStatus').textContent = '';
   } else {
     $('#productModalTitle').textContent = 'Novo plugin';
+    $('#productCoverUrl').value = '';
+    $('#coverPreview').style.display = 'none';
+    $('#coverUploadStatus').textContent = '';
   }
   $('#productModal').classList.add('open');
 }
 
 $('#newProductBtn').onclick = () => openProductModal();
+
+// Preview da capa selecionada (antes do upload)
+const coverFileInput = document.getElementById('productCoverFile');
+if (coverFileInput) {
+  coverFileInput.addEventListener('change', () => {
+    const file = coverFileInput.files[0];
+    const preview = $('#coverPreview');
+    const previewImg = $('#coverPreviewImg');
+    if (!file) { return; }
+    // Preview local do arquivo selecionado
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      previewImg.src = e.target.result;
+      preview.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 // Sync products to AbacatePay
 const syncBtn = document.getElementById('syncAbacateBtn');
@@ -477,6 +510,7 @@ $('#saveProductBtn').onclick = async () => {
     tagline: f.tagline.value,
     description: f.description.value,
     video: videoUrl || '',
+    coverImage: $('#productCoverUrl').value.trim() || '',
     downloadUrl: f.downloadUrl.value.trim() || '',
     price: parseFloat(f.price.value),
     oldPrice: f.oldPrice.value ? parseFloat(f.oldPrice.value) : null,
@@ -524,6 +558,39 @@ $('#saveProductBtn').onclick = async () => {
         status.textContent = 'Falha no upload do JAR.';
         status.style.color = 'var(--error)';
         toast('Falha no upload do JAR', false);
+      }
+    }
+
+    // Upload da capa/banner: o backend envia a imagem para a release do GitHub
+    const coverFile = f.coverFile.files[0];
+    if (coverFile) {
+      const coverStatus = $('#coverUploadStatus');
+      coverStatus.textContent = 'Enviando capa...';
+      coverStatus.style.color = 'var(--info)';
+      const productId = result.product.id || editingId;
+      try {
+        const coverUpload = await DB.apiFetch(`/products/${productId}/upload-cover`, {
+          method: 'POST',
+          headers: { 'Content-Type': coverFile.type || 'application/octet-stream' },
+          body: coverFile
+        });
+        if (coverUpload && coverUpload.coverUrl) {
+          data.coverImage = coverUpload.coverUrl;
+          $('#productCoverUrl').value = coverUpload.coverUrl;
+          $('#coverPreviewImg').src = coverUpload.coverUrl;
+          $('#coverPreview').style.display = 'block';
+          coverStatus.textContent = 'Capa enviada';
+          coverStatus.style.color = 'var(--success)';
+          toast('Capa enviada com sucesso', true);
+        } else {
+          coverStatus.textContent = 'Falha no upload da capa.';
+          coverStatus.style.color = 'var(--error)';
+          toast(coverUpload?.error || 'Falha no upload da capa', false);
+        }
+      } catch (coverErr) {
+        coverStatus.textContent = 'Erro: ' + (coverErr.message || 'desconhecido');
+        coverStatus.style.color = 'var(--error)';
+        toast('Erro ao enviar capa', false);
       }
     }
 

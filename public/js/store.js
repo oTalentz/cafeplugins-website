@@ -139,7 +139,14 @@ function renderProducts(searchQuery = '') {
   list.forEach(p => {
     const card = document.createElement('article');
     card.className = 'product-card';
+    const cover = p.coverImage || p.cover_image || '';
+    const coverHTML = cover
+      ? `<div class="cover" style="position:relative; margin:-16px -16px 12px -16px; height:120px; overflow:hidden; border-radius:12px 12px 0 0; background:var(--surface-2)">
+           <img src="${escHtml(cover)}" alt="${escHtml(p.name)}" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block" onerror="this.parentElement.style.display='none'" />
+         </div>`
+      : '';
     card.innerHTML = `
+      ${coverHTML}
       <div class="top">
         <div class="icon">${escHtml((p.name || '?').charAt(0))}</div>
         <div class="top-tags">
@@ -239,6 +246,12 @@ function openProductModal(p) {
   $('#modalPrice').innerHTML = `${brl(p.price)}${p.oldPrice ? ` <small style="color:var(--ink-3); text-decoration:line-through; font-size:0.875rem; font-weight:400; margin-left:4px">${brl(p.oldPrice)}</small>` : ''}`;
 
   const video = DB.parseVideoUrl(p.video);
+  const cover = p.coverImage || p.cover_image || '';
+  const coverHTML = cover
+    ? `<div class="cover-modal" style="margin:-20px -24px 16px -24px; height:200px; overflow:hidden; border-radius:12px 12px 0 0; background:var(--surface-2)">
+         <img src="${escHtml(cover)}" alt="${escHtml(p.name)}" style="width:100%; height:100%; object-fit:cover; display:block" onerror="this.parentElement.style.display='none'" />
+       </div>`
+    : '';
   const videoHTML = video
     ? `<div class="video-label">
          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
@@ -252,6 +265,7 @@ function openProductModal(p) {
     : '';
 
   $('#modalBody').innerHTML = `
+    ${coverHTML}
     <p style="color:var(--ink-2); margin-bottom:8px; font-size:0.9375rem">${escHtml(p.description)}</p>
     <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; align-items:center">
       ${p.badge ? `<span class="badge ${badgeClass(p.badge)}">${escHtml(p.badge)}</span>` : ''}

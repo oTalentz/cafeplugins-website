@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS products (
   stock INTEGER DEFAULT 999,
   video TEXT,
   image TEXT,
+  cover_image TEXT,
   download_url TEXT,
   max_downloads INTEGER DEFAULT 5,
   active INTEGER NOT NULL DEFAULT 1,
@@ -313,7 +314,9 @@ const MIGRATIONS = [
       await db.execute({ sql: "UPDATE users SET email_verified = 1, email_verified_at = COALESCE(email_verified_at, ?) WHERE role = 'admin' AND (email_verified IS NULL OR email_verified = 0)", args: [now] });
       log.info('backfill: admins marcados como email_verified=1');
     } catch (e) { log.warn('backfill admin verified skip:', e.message); }
-  } }
+  } },
+  // Capa/banner do produto (imagem de destaque nos cards e modal)
+  { id: 'cover_image_products', table: 'products', column: 'cover_image', def: 'TEXT' }
 ];
 
 async function runMigrations() {

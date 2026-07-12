@@ -46,6 +46,7 @@ function cleanProductBody(b) {
     badge: sanitizeText(b.badge || '', { max: LIMITS.badge }) || null,
     video: sanitizeUrl(b.video || ''),
     image: sanitizeUrl(b.image || ''),
+    coverImage: sanitizeUrl(b.coverImage || ''),
     downloadUrl: sanitizeUrl(b.downloadUrl || ''),
     price: Number(b.price),
     oldPrice: b.oldPrice != null && b.oldPrice !== '' ? Number(b.oldPrice) : null,
@@ -71,15 +72,15 @@ router.post('/', requireAdmin, async (req, res) => {
   const id = sanitizeIdentifier(b.id, { max: 64 }) || uid('pf-');
   const features = Array.isArray(b.features) ? b.features.slice(0, 20).map(f => sanitizeText(String(f), { max: 200 })) : [];
   await run(
-    `INSERT INTO products (id, name, tagline, description, price, old_price, category, version, badge, features, stock, video, image, download_url, max_downloads, active, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (id, name, tagline, description, price, old_price, category, version, badge, features, stock, video, image, cover_image, download_url, max_downloads, active, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, c.name, c.tagline, c.description,
       c.price, c.oldPrice,
       c.category, c.version, c.badge,
       JSON.stringify(features),
       c.stock,
-      c.video, c.image, c.downloadUrl,
+      c.video, c.image, c.coverImage, c.downloadUrl,
       c.maxDownloads,
       b.active === false ? 0 : 1,
       nowISO()
@@ -132,6 +133,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
   if (b.badge !== undefined) { fields.push('badge = ?'); args.push(c.badge); }
   if (b.video !== undefined) { fields.push('video = ?'); args.push(c.video); }
   if (b.image !== undefined) { fields.push('image = ?'); args.push(c.image); }
+  if (b.coverImage !== undefined) { fields.push('cover_image = ?'); args.push(c.coverImage); }
   if (b.downloadUrl !== undefined) { fields.push('download_url = ?'); args.push(c.downloadUrl); }
   if (b.price !== undefined) {
     if (!isFinite(c.price) || c.price < 0) return res.status(400).json({ error: 'Preço inválido' });
@@ -226,6 +228,7 @@ function serialize(p, { admin = false } = {}) {
     oldPrice: p.old_price != null ? Number(p.old_price) : null,
     stock: Number(p.stock || 0),
     maxDownloads: Number(p.max_downloads || 5),
+    coverImage: p.cover_image || null,
     features,
     active: Boolean(p.active)
   };
@@ -298,6 +301,56 @@ router.get('/:id/test-download', requireAdmin, async (req, res) => {
   } catch (e) {
     log.error('diagnostico de download falhou', { id, downloadUrl: product.download_url, error: e.message });
     res.status(502).json({ ok: false, downloadUrl: product.download_url, error: e.message });
+  }
+});
+
+// Upload de capa/banner do produto: recebe a imagem bruta e envia para uma
+// release do GitHub (mesmo bucket dos JARs). A URL final é salva no produto.
+router.post('/:id/upload-cover', requireAdmin, async (req, res) => {
+  const id = sanitizeIdentifier(req.params.id, { max: 64 });
+  if (!id) return res.status(400).json({ error: 'ID invalido' });
+  const product = await get('SELECT * FROM products WHERE id = ?', [id]);
+  if (!product) return res.status(404).json({ error: 'Produto não encontrado' });
+
+  const buffer = req.body;
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    return res.status(400).json({ error: 'Imagem não enviada ou vazia' });
+  }
+  // Limite de 4MB para capa (não exagerado)
+  if (buffer.length > 4 * 1024 * 1024) {
+    return res.status(400).json({ error: 'Imagem muito grande (máximo 4MB)' });
+  }
+  // Valida magic number (PNG/JPG/WEBP/GIF)
+  const sig = buffer.slice(0, 12);
+  const isPng = sig.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]));
+  const isJpg = sig.slice(0, 3).equals(Buffer.from([0xFF, 0xD8, 0xFF]));
+  const isWebp = sig.slice(0, 4).equals(Buffer.from('RIFF')) && sig.slice(8, 12).equals(Buffer.from('WEBP'));
+  const isGif = sig.slice(0, 6).equals(Buffer.from('GIF89a')) || sig.slice(0, 6).equals(Buffer.from('GIF87a'));
+  if (!isPng && !isJpg && !isWebp && !isGif) {
+    return res.status(400).json({ error: 'Formato não suportado. Use PNG, JPG, WEBP ou GIF.' });
+  }
+  const ext = isPng ? 'png' : isJpg ? 'jpg' : isWebp ? 'webp' : 'gif';
+
+  log.info('upload de capa recebido', { id, size: buffer.length, ext, productName: product.name });
+
+  try {
+    const version = `v${(product.version || '1.0').replace(/[^0-9.]/g, '')}`;
+    const coverUrl = await uploadJarToGitHubRelease({
+      buffer,
+      productId: id,
+      productName: product.name,
+      version,
+      filename: `cover-${id}.${ext}`,
+      contentType: isPng ? 'image/png' : isJpg ? 'image/jpeg' : isWebp ? 'image/webp' : 'image/gif'
+    });
+
+    await run('UPDATE products SET cover_image = ?, updated_at = ? WHERE id = ?', [coverUrl, nowISO(), id]);
+    const updated = await get('SELECT * FROM products WHERE id = ?', [id]);
+    log.info('capa salva', { id, coverUrl });
+    res.json({ product: serialize(updated, { admin: true }), coverUrl });
+  } catch (e) {
+    log.error('erro ao fazer upload de capa', { id, error: e.message, stack: e.stack });
+    res.status(500).json({ error: 'Erro ao enviar capa: ' + e.message });
   }
 });
 

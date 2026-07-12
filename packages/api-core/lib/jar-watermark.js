@@ -182,14 +182,15 @@ export function embedPublicKeyInJar(jarBuffer, productId, apiUrl = 'https://cafe
  * Faz upload de um JAR para uma release do GitHub e retorna a URL pública.
  * Requer GITHUB_TOKEN no .env.
  */
-export async function uploadJarToGitHubRelease({ buffer, productId, productName, version = 'v1.0.0' }) {
+export async function uploadJarToGitHubRelease({ buffer, productId, productName, version = 'v1.0.0', filename: customFilename, contentType: customContentType }) {
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
     throw new Error('GITHUB_TOKEN não configurado no .env');
   }
   const repo = process.env.GITHUB_PLUGIN_REPO || 'oTalentz/Bestiary-Plugin-CafePlugins2026';
   const safeName = String(productName || productId).replace(/[^a-zA-Z0-9_-]/g, '_');
-  const filename = `${safeName}-${version}.jar`;
+  const filename = customFilename || `${safeName}-${version}.jar`;
+  const contentType = customContentType || 'application/java-archive';
 
   // Cria release (ignora 422 se já existir)
   const releaseRes = await fetch(`https://api.github.com/repos/${repo}/releases`, {
@@ -220,7 +221,7 @@ export async function uploadJarToGitHubRelease({ buffer, productId, productName,
   const uploadUrl = release.upload_url.replace('{?name,label}', `?name=${encodeURIComponent(filename)}`);
   const uploadRes = await fetch(uploadUrl, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/java-archive' },
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': contentType },
     body: buffer
   });
   if (!uploadRes.ok) {

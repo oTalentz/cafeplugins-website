@@ -556,6 +556,16 @@
             <small style="display:block; margin-top:4px; color:var(--ink-3); font-size:0.75rem">Aceita YouTube (watch/shorts/embed), Vimeo ou link direto de .mp4/.webm</small>
           </div>
           <div class="field full">
+            <label>Capa/banner do plugin (opcional)</label>
+            <input name="coverFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" id="productCoverFile" />
+            <input name="coverImage" type="hidden" id="productCoverUrl" />
+            <div id="coverUploadStatus" style="margin-top:6px; font-size:0.8125rem; color:var(--ink-3)"></div>
+            <div id="coverPreview" style="margin-top:8px; display:none">
+              <img id="coverPreviewImg" src="" alt="Capa" style="max-width:100%; max-height:140px; border-radius:8px; border:1px solid var(--line)" />
+            </div>
+            <small style="display:block; margin-top:4px; color:var(--ink-3); font-size:0.75rem">PNG, JPG, WEBP ou GIF. Máximo 4MB. Recomendado: 1200×400px.</small>
+          </div>
+          <div class="field full">
             <label>Arquivo .jar do plugin</label>
             <input name="jarFile" type="file" accept=".jar" id="productJarFile" />
             <input name="downloadUrl" type="hidden" id="productDownloadUrl" />
