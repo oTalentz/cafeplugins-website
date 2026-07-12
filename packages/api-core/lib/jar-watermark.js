@@ -176,7 +176,15 @@ export async function createWatermarkedJar({ originalUrl, licenseKey, orderId, b
 
   log.info('gerando build watermarkada', { orderId, productId, buyerEmail, originalUrl });
 
-  const res = await fetch(originalUrl, { redirect: 'follow' });
+  const headers = {};
+  if (process.env.GITHUB_TOKEN && originalUrl.includes('github.com')) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    headers.Accept = 'application/octet-stream';
+  }
+  let res = await fetch(originalUrl, { redirect: 'manual', headers });
+  if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+    res = await fetch(res.headers.get('location'), { redirect: 'follow' });
+  }
   if (!res.ok) {
     throw new Error(`Falha ao baixar JAR original: ${res.status} ${res.statusText}`);
   }
