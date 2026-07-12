@@ -39,7 +39,7 @@
   "crons": [
     {
       "path": "/api/orders/cron/poll-pending",
-      "schedule": "*/15 * * * *"
+      "schedule": "*/6 * * * *"
     }
   ]
 }
