@@ -21,10 +21,14 @@ router.post('/become', becomeLimiter, requireAuth, async (req, res) => {
 
   // Gera código único (até 10 tentativas)
   let code;
+  let codeOk = false;
   for (let i = 0; i < 10; i++) {
     code = generateAffCode(u.name);
     const existing = await get('SELECT 1 FROM users WHERE affiliate_code = ?', [code]);
-    if (!existing) break;
+    if (!existing) { codeOk = true; break; }
+  }
+  if (!codeOk) {
+    return res.status(500).json({ error: 'Não foi possível gerar um código único. Tente novamente.' });
   }
   await run(
     'UPDATE users SET is_affiliate = 1, affiliate_code = ?, affiliate_rate = 25, affiliate_status = ? WHERE id = ?',
@@ -99,10 +103,18 @@ router.post('/payouts', payoutLimiter, requireAuth, async (req, res) => {
   if (!finalPixKey) return res.status(400).json({ error: 'Informe sua chave PIX para receber o saque' });
 
   const id = uid('po-');
-  await run(
-    'INSERT INTO payouts (id, affiliate_id, affiliate_code, amount, method, pix_key, pix_holder, status, note, requested_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [id, req.user.id, req.user.affiliate_code, pending, 'Pix', finalPixKey, finalPixHolder, 'pendente', '', nowISO()]
+  // Race condition fix: INSERT condicional atômico. Se duas requisições concorrentes
+  // passarem pelo SELECT acima, apenas uma terá rowsAffected=1; a outra verá 0 e falhará.
+  const ins = await run(
+    `INSERT INTO payouts (id, affiliate_id, affiliate_code, amount, method, pix_key, pix_holder, status, note, requested_at)
+     SELECT ?, ?, ?, ?, ?, ?, ?, 'pendente', '', ? WHERE NOT EXISTS (
+       SELECT 1 FROM payouts WHERE affiliate_id = ? AND status = 'pendente'
+     )`,
+    [id, req.user.id, req.user.affiliate_code, pending, 'Pix', finalPixKey, finalPixHolder, nowISO(), req.user.id]
   );
+  if ((ins?.rowsAffected || 0) === 0) {
+    return res.status(409).json({ error: 'Você já tem uma solicitação de saque pendente' });
+  }
   // Salva a chave PIX no user também
   await run('UPDATE users SET pix_key = ?, pix_holder = ? WHERE id = ?', [finalPixKey, finalPixHolder, req.user.id]);
   const created = await get('SELECT * FROM payouts WHERE id = ?', [id]);

@@ -145,11 +145,13 @@ router.post('/checkout', checkoutLimiter, optionalAuth, async (req, res) => {
     } else {
       const id = uid('u-');
       // NO_PASSWORD: e-mail não verificado (será verificado após pagamento ou via code manual)
+      // Race condition fix: INSERT OR IGNORE evita crash se duas requisições concorrentes
+      // tentarem criar o mesmo usuário (email é UNIQUE). Re-buscamos o user após o insert.
       await run(
-        'INSERT INTO users (id, email, name, password_hash, role, created_at, email_verified) VALUES (?, ?, ?, ?, ?, ?, 0)',
+        'INSERT OR IGNORE INTO users (id, email, name, password_hash, role, created_at, email_verified) VALUES (?, ?, ?, ?, ?, ?, 0)',
         [id, e, cleanName, 'NO_PASSWORD', 'buyer', nowISO()]
       );
-      buyer = await get('SELECT * FROM users WHERE id = ?', [id]);
+      buyer = await get('SELECT * FROM users WHERE email = ?', [e]);
       // Envia code de verificação imediatamente (respeita cooldown)
       try {
         await sendCode(e, 'verify');
@@ -666,8 +668,21 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
       filename = filenameForDownload({ productName: item.name, productId: item.id });
     }
 
-    downloads.push({ ts: nowISO(), ip: req.ip, ua: (req.headers['user-agent'] || '').slice(0, 100) });
-    await run('UPDATE orders SET downloads = ? WHERE id = ?', [JSON.stringify(downloads), order.id]);
+    // Race condition fix: UPDATE atômico que só adiciona o log de download se o
+    // contador atual ainda estiver abaixo do limite. json_array_length verifica
+    // o tamanho do array no banco, e json_insert anexa o novo registro em $[#]
+    // (final do array). Se duas requisições concorrentes chegarem aqui, apenas
+    // uma terá rowsAffected=1; a outra verá 0 (limite já foi atingido).
+    const logEntry = JSON.stringify({ ts: nowISO(), ip: req.ip, ua: (req.headers['user-agent'] || '').slice(0, 100) });
+    const upd = await run(
+      `UPDATE orders SET downloads = json_insert(coalesce(downloads, '[]'), '$[#]', json(?))
+       WHERE id = ? AND json_array_length(coalesce(downloads, '[]')) < ?`,
+      [logEntry, order.id, maxDownloads]
+    );
+    if ((upd?.rowsAffected || 0) === 0) {
+      log.warn('download rejeitado: limite atingido (atômico)', { orderId: order.id, maxDownloads });
+      return res.status(403).json({ error: 'Limite de downloads atingido para esta compra.', code: 'DOWNLOAD_LIMIT_REACHED' });
+    }
 
     res.setHeader('Content-Type', 'application/java-archive');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

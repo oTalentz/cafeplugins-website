@@ -15,7 +15,8 @@ function safeHref(url) {
   }
 }
 
-function renderError(title, sub) {
+function renderError(title, sub, link) {
+  const linkHtml = link ? `<a href="${escHtml(link.href)}" class="btn btn-secondary" style="margin-top:12px; display:inline-block">${escHtml(link.text)}</a>` : '';
   $('#dlContent').innerHTML = `
     <div class="dl-err-icon">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -23,6 +24,7 @@ function renderError(title, sub) {
     <div>
       <div class="dl-title">${escHtml(title)}</div>
       <div class="dl-sub">${escHtml(sub)}</div>
+      ${linkHtml}
     </div>
   `;
 }
@@ -80,7 +82,11 @@ function renderReady(order) {
       const res = await fetch(`/api/orders/${order.id}/download?t=${encodeURIComponent(token)}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        renderError('Download bloqueado', data.error || 'Não foi possível baixar o plugin.');
+        // 410 = token expirado; 403 = limite atingido ou e-mail não verificado
+        const link = (res.status === 410 || (data && data.code === 'DOWNLOAD_LIMIT_REACHED'))
+          ? { href: '/account.html', text: 'Ir para minha conta' }
+          : null;
+        renderError('Download bloqueado', data.error || 'Não foi possível baixar o plugin.', link);
         return;
       }
       const blob = await res.blob();
@@ -112,7 +118,7 @@ function renderReady(order) {
   }
   const order = await DB.getOrderByToken(token);
   if (!order) {
-    renderError('Link não encontrado', 'O token expirou ou não existe. Verifique o link enviado por e-mail.');
+    renderError('Link não encontrado', 'O token expirou ou não existe. Verifique o link enviado por e-mail ou acesse sua conta para gerar um novo.', { href: '/account.html', text: 'Ir para minha conta' });
     return;
   }
   setTimeout(() => renderReady(order), 400);

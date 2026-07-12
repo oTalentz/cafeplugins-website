@@ -183,6 +183,13 @@ router.post('/cleanup', requireAdmin, async (req, res) => {
     .map(e => e.trim().toLowerCase())
     .filter(Boolean);
 
+  // Safety: se por algum motivo PROTECTED_EMAILS ficar vazio (ex: ADMIN_EMAIL=''
+  // setado explicitamente), a query SQL seria inválida (NOT IN ()) e poderia
+  // deletar TODOS os usuários. Bloqueia defensivamente.
+  if (PROTECTED_EMAILS.length === 0) {
+    return res.status(400).json({ error: 'Nenhum e-mail protegido configurado. Defina ADMIN_EMAIL antes de executar cleanup.' });
+  }
+
   try {
     // 1. Pega IDs dos users protegidos
     const protectedUsers = await all(

@@ -40,7 +40,7 @@ const STORAGE_KEYS = {
 
 let state = {
   products: [],
-  cart: JSON.parse(localStorage.getItem(STORAGE_KEYS.cart) || '[]'),
+  cart: (function () { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.cart) || '[]'); } catch { return []; } })(),
   filter: 'Todos'
 };
 

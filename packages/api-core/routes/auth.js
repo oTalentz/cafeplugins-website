@@ -180,7 +180,15 @@ router.post('/verify-code', verifyCodeLimiter, async (req, res) => {
     [e, purpose, String(code).trim(), nowISO()]
   );
   if (!row) return res.status(401).json({ error: 'Código inválido ou expirado' });
-  await run('UPDATE login_codes SET used = 1 WHERE id = ?', [row.id]);
+  // Race condition fix: UPDATE condicional atômico. Se duas requisições concorrentes
+  // chegarem aqui, apenas uma terá rowsAffected=1; a outra verá 0 e falhará.
+  const upd = await run(
+    'UPDATE login_codes SET used = 1 WHERE id = ? AND used = 0',
+    [row.id]
+  );
+  if ((upd?.rowsAffected || 0) === 0) {
+    return res.status(401).json({ error: 'Código inválido ou expirado' });
+  }
 
   const user = await get('SELECT * FROM users WHERE email = ?', [e]);
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -212,7 +220,14 @@ router.post('/verify-email', verifyCodeLimiter, async (req, res) => {
     [e, String(code).trim(), nowISO()]
   );
   if (!row) return res.status(401).json({ error: 'Código inválido ou expirado' });
-  await run('UPDATE login_codes SET used = 1 WHERE id = ?', [row.id]);
+  // Race condition fix: UPDATE condicional atômico (mesmo padrão do /verify-code).
+  const upd = await run(
+    'UPDATE login_codes SET used = 1 WHERE id = ? AND used = 0',
+    [row.id]
+  );
+  if ((upd?.rowsAffected || 0) === 0) {
+    return res.status(401).json({ error: 'Código inválido ou expirado' });
+  }
   const user = await get('SELECT * FROM users WHERE email = ?', [e]);
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
   // Marca como verificado e bump token_version para invalidar tokens antigos
@@ -283,7 +298,11 @@ router.post('/set-password', resetLimiter, async (req, res) => {
     [e, 'login', String(code).trim(), nowISO()]
   );
   if (!row) return res.status(401).json({ error: 'Código inválido ou expirado' });
-  await run('UPDATE login_codes SET used = 1 WHERE id = ?', [row.id]);
+  // Race condition fix: UPDATE condicional atômico.
+  const upd = await run('UPDATE login_codes SET used = 1 WHERE id = ? AND used = 0', [row.id]);
+  if ((upd?.rowsAffected || 0) === 0) {
+    return res.status(401).json({ error: 'Código inválido ou expirado' });
+  }
 
   const user = await get('SELECT * FROM users WHERE email = ?', [e]);
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -310,7 +329,11 @@ router.post('/reset-password', resetLimiter, async (req, res) => {
     [e, 'reset', String(code).trim(), nowISO()]
   );
   if (!row) return res.status(401).json({ error: 'Código inválido ou expirado' });
-  await run('UPDATE login_codes SET used = 1 WHERE id = ?', [row.id]);
+  // Race condition fix: UPDATE condicional atômico.
+  const upd = await run('UPDATE login_codes SET used = 1 WHERE id = ? AND used = 0', [row.id]);
+  if ((upd?.rowsAffected || 0) === 0) {
+    return res.status(401).json({ error: 'Código inválido ou expirado' });
+  }
   const newHash = hashPassword(newPassword);
   // Bump token_version para invalidar tokens existentes
   await run('UPDATE users SET password_hash = ?, token_version = COALESCE(token_version, 0) + 1 WHERE email = ?', [newHash, e]);

@@ -164,15 +164,22 @@ async function api(path, opts = {}) {
   const headers = { ...(rawBody ? {} : { 'Content-Type': 'application/json' }), ...(opts.headers || {}) };
   const token = getToken();
   if (token) headers.Authorization = 'Bearer ' + token;
+  // Timeout: uploads (Blob/FormData) recebem 60s, demais requisições 30s.
+  // Evita que fetch fique pendurado indefinidamente se o servidor travar.
+  const timeoutMs = opts.timeout || (rawBody ? 60_000 : 30_000);
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
   let r;
   try {
     r = await fetch(API_BASE + path, {
       method: opts.method || 'GET',
       headers,
-      body: rawBody ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined)
+      body: rawBody ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),
+      signal: ctl.signal
     });
   } catch (netErr) {
-    const e = new Error('Sem conexão com o servidor');
+    clearTimeout(timer);
+    const e = new Error(netErr.name === 'AbortError' ? 'Tempo limite excedido. Tente novamente.' : 'Sem conexão com o servidor');
     e.status = 0;
     e.url = API_BASE + path;
     e.hint = 'API fora do ar. Verifique /api/diag';
@@ -181,6 +188,7 @@ async function api(path, opts = {}) {
     }
     throw e;
   }
+  clearTimeout(timer);
   let data = {};
   try { data = await r.json(); } catch { data = {}; }
   if (!r.ok) {
