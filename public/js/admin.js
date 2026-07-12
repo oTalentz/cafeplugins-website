@@ -354,12 +354,28 @@ function renderProducts() {
   }
   $('#productsTable').innerHTML = list.map(p => {
     const synced = !!p.abacateProductId;
+    const hasJar = !!(p.downloadUrl || p.download_url);
+    const hasCover = !!(p.coverImage || p.cover_image);
+    const coverUrl = p.coverImage || p.cover_image || '';
+    const jarPill = hasJar
+      ? '<span class="pill ok" title="JAR vinculado e pronto para download">JAR ✓</span>'
+      : '<span class="pill warn" title="Sem JAR — faça upload do .jar no editar">JAR ✗</span>';
+    const coverPill = hasCover
+      ? '<span class="pill ok" title="Capa/banner definido">Capa ✓</span>'
+      : '<span class="pill warn" title="Sem capa — faça upload no editar">Capa ✗</span>';
+    const iconHtml = coverUrl
+      ? `<div class="ic" style="padding:0; overflow:hidden"><img src="${escHtml(coverUrl)}" alt="${escHtml(p.name)}" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block" onerror="this.style.display='none'; this.parentElement.classList.add('no-cover')" /></div>`
+      : `<div class="ic">${escHtml((p.name || '?').charAt(0))}</div>`;
     return `
     <tr>
       <td>
         <div class="row-product">
-          <div class="ic">${escHtml((p.name || '?').charAt(0))}</div>
-          <div class="info"><strong>${escHtml(p.name)}</strong><small>${escHtml(p.tagline)}</small></div>
+          ${iconHtml}
+          <div class="info">
+            <strong>${escHtml(p.name)}</strong>
+            <small>${escHtml(p.tagline)}</small>
+            <div style="display:flex; gap:4px; margin-top:4px; flex-wrap:wrap">${jarPill}${coverPill}</div>
+          </div>
         </div>
       </td>
       <td>${escHtml(p.category)}</td>
@@ -607,6 +623,9 @@ $('#saveProductBtn').onclick = async () => {
         toast(`Plugin salvo, mas sync com AbacatePay falhou: ${result.abacate.error}. Cartão indisponível até "Sync AbacatePay".`, false);
       }
     }
+    // Refresh do cache admin (garante que download_url, cover_image e
+    // abacate_product_id estejam atualizados na listagem)
+    try { await DB.getAllProducts(); } catch {}
     $('#productModal').classList.remove('open');
     renderAll();
   } catch (err) {
@@ -1792,6 +1811,7 @@ async function refreshAllFromBackend() {
   const endLoading = btn ? Loading.buttonStart(btn, 'Atualizando…') : () => {};
   try {
     await DB._refreshUserData();
+    await DB.getAllProducts();
     renderAll();
     toast('Dados atualizados');
   } catch (e) {

@@ -261,6 +261,8 @@ const DB = {
     if (!cache.me) return;
     if (cache.me.role === 'admin') {
       try { const r = await api('/admin/stats'); cache.adminStats = r; } catch {}
+      // Produtos COM campos admin (download_url, cover_image, abacate_product_id)
+      try { const r = await api('/products/all'); cache.products = (r.products || []).map(normalizeProduct); } catch {}
       // Pedidos ATIVOS (filtra lixeira por padrão)
       try { const r = await api('/orders'); cache.orders = (r.orders || []).map(normalizeOrder); } catch {}
       // LIXEIRA (separada)

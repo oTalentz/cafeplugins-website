@@ -568,9 +568,13 @@ thead tr:hover .row-checkbox,
   font-weight: 600;
   font-size: 0.8125rem;
   color: var(--ink);
+  flex-shrink: 0;
+  overflow: hidden;
 }
+.row-product .ic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .row-product .info strong { display: block; font-weight: 500; font-size: 0.9375rem; }
 .row-product .info small { color: var(--ink-3); font-size: 0.8125rem; }
+.row-product .info .pill { font-size: 0.6875rem; padding: 2px 7px; }
 .pill {
   display: inline-flex;
   align-items: center;
