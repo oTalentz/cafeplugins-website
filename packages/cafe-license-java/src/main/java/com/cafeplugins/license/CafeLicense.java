@@ -44,6 +44,9 @@ import java.util.logging.Level;
  * A build baixada pelo cliente contém um watermark ({@code /cafe-watermark.jwt})
  * assinado pelo backend. O SDK valida esse watermark localmente para garantir
  * que o JAR não foi repassado/adulterado e para rastrear a origem em caso de vazamento.
+ *
+ * O watermark é obrigatório: JARs sem watermark (ausente, vazio ou inválido) são
+ * bloqueados imediatamente. Apenas builds baixadas oficialmente pela loja funcionam.
  */
 public final class CafeLicense {
 
@@ -90,6 +93,8 @@ public final class CafeLicense {
         scheduler.runTaskTimerAsynchronously(plugin, () -> {
             try {
                 LicenseConfig config = loadConfig(plugin);
+                // Revalida watermark a cada ciclo: se foi removido/adulterado em runtime, bloqueia.
+                validateWatermark(plugin, config);
                 doVerify(plugin, config, licenseKey);
             } catch (Exception e) {
                 disable(plugin, "Revalidação de licença falhou: " + e.getMessage());
@@ -157,15 +162,21 @@ public final class CafeLicense {
      * Valida o watermark embutido no JAR pela loja. Retorna a licenseKey contida no
      * watermark, permitindo que builds personalizadas funcionem sem o usuário digitar
      * manualmente a chave no config.yml.
+     *
+     * O watermark é obrigatório: builds sem watermark (cafe-watermark.jwt ausente,
+     * vazio ou inválido) são bloqueadas. Isso garante que apenas JARs baixados
+     * oficialmente pela loja funcionem e permite rastrear a origem em caso de vazamento.
      */
     private static String validateWatermark(Plugin plugin, LicenseConfig config) {
         InputStream in = plugin.getResource("cafe-watermark.jwt");
         if (in == null) {
-            return null;
+            disableAndThrow(plugin, "JAR sem watermark — build inválida ou adulterada. Baixe o plugin oficialmente pela loja.");
         }
         try {
             String watermark = new String(in.readAllBytes(), StandardCharsets.UTF_8).trim();
-            if (watermark.isBlank()) return null;
+            if (watermark.isBlank()) {
+                disableAndThrow(plugin, "Watermark vazio — build inválida ou adulterada. Baixe o plugin oficialmente pela loja.");
+            }
 
             RSAPublicKey publicKey = parsePublicKey(config.getPublicKey());
             Algorithm algo = Algorithm.RSA256(publicKey, null);
