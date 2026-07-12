@@ -606,7 +606,9 @@ router.get('/:id/download-token', requireAuth, async (req, res) => {
 router.get('/cron/poll-pending', async (req, res) => {
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
-    const provided = req.headers['x-cron-secret'] || '';
+    // Vercel Cron envia o secret no header Authorization: Bearer <CRON_SECRET>
+    const authHeader = req.headers['authorization'] || '';
+    const provided = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
     if (!timingSafeEqual(cronSecret, provided)) {
       return res.status(403).json({ error: 'Não autorizado' });
     }
