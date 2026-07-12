@@ -1,0 +1,14 @@
+{
+  "root": true,
+  "env": { "node": true, "browser": true, "es2022": true },
+  "parserOptions": { "ecmaVersion": 2022, "sourceType": "module" },
+  "extends": ["eslint:recommended"],
+  "rules": {
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "semi": ["error", "always"],
+    "quotes": ["warn", "single"],
+    "indent": ["warn", 2]
+  },
+  "ignorePatterns": ["node_modules/", ".vercel/", "dist/", "packages/cafe-license-java/"]
+}

@@ -12,12 +12,15 @@
   "scripts": {
     "start": "node api/server.js",
     "dev": "node --watch api/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "lint": "eslint api/ packages/ public/js/",
+    "lint:fix": "eslint --fix api/ packages/ public/js/",
+    "format": "prettier --write \"api/**/*.js\" \"packages/**/*.js\" \"public/**/*.js\""
   },
   "dependencies": {
-    "@libsql/client": "^0.14.0",
+    "@libsql/client": "^0.17.4",
     "api-core": "file:./packages/api-core",
-    "bcryptjs": "^2.4.3",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -25,6 +28,8 @@
     "morgan": "^1.10.0"
   },
   "devDependencies": {
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.5",
     "vercel": "^54.21.1"
   }
 }
