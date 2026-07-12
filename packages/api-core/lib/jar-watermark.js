@@ -33,34 +33,61 @@ function writeEntry(zip, name, content) {
  * Baixa o JAR original a partir de uma URL pública (por exemplo, release do GitHub).
  * Reutiliza a lógica de autenticação para repositórios privados.
  */
-export async function fetchOriginalJar(originalUrl) {
-  const headers = {};
-  if (process.env.GITHUB_TOKEN && originalUrl.includes('github.com')) {
-    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-    headers.Accept = 'application/octet-stream';
-  }
-  log.info('baixando JAR original', { originalUrl, hasToken: !!process.env.GITHUB_TOKEN });
+async function fetchWithHeaders(originalUrl, headers) {
   let res = await fetch(originalUrl, { redirect: 'manual', headers });
   if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
     log.info('redirect detectado no JAR original', { status: res.status, location: res.headers.get('location') });
     res = await fetch(res.headers.get('location'), { redirect: 'follow' });
   }
-  if (!res.ok) {
-    throw new Error(`Falha ao baixar JAR original: ${res.status} ${res.statusText}`);
+  return res;
+}
+
+export async function fetchOriginalJar(originalUrl) {
+  const isGitHub = originalUrl.includes('github.com');
+  const token = process.env.GITHUB_TOKEN;
+
+  // Para URLs do GitHub, tenta com token (privado) e depois sem token (publico).
+  // O token pode estar invalido ou o repo pode ser publico, entao o fallback sem token evita 404.
+  const attempts = [];
+  if (isGitHub && token) {
+    attempts.push({
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/octet-stream', 'User-Agent': 'cafe-plugins' },
+      withToken: true
+    });
+  }
+  attempts.push({
+    headers: { Accept: 'application/octet-stream', 'User-Agent': 'cafe-plugins' },
+    withToken: false
+  });
+
+  let lastErr = null;
+  for (const attempt of attempts) {
+    log.info('baixando JAR original', { originalUrl, withToken: attempt.withToken, isGitHub });
+    try {
+      const res = await fetchWithHeaders(originalUrl, attempt.headers);
+      if (!res.ok) {
+        throw new Error(`Falha ao baixar JAR original: ${res.status} ${res.statusText}`);
+      }
+
+      const jarBuffer = Buffer.from(await res.arrayBuffer());
+      if (!jarBuffer.length) {
+        throw new Error('JAR original veio vazio');
+      }
+
+      // Verifica magic number do ZIP (JAR é um ZIP)
+      if (jarBuffer[0] !== 0x50 || jarBuffer[1] !== 0x4B) {
+        throw new Error('JAR original não é um arquivo ZIP válido (pode ser HTML de redirect)');
+      }
+
+      log.info('JAR original baixado', { originalUrl, withToken: attempt.withToken, size: jarBuffer.length });
+      return jarBuffer;
+    } catch (err) {
+      lastErr = err;
+      log.warn('tentativa de download falhou', { originalUrl, withToken: attempt.withToken, error: err.message });
+    }
   }
 
-  const jarBuffer = Buffer.from(await res.arrayBuffer());
-  if (!jarBuffer.length) {
-    throw new Error('JAR original veio vazio');
-  }
-
-  // Verifica magic number do ZIP (JAR é um ZIP)
-  if (jarBuffer[0] !== 0x50 || jarBuffer[1] !== 0x4B) {
-    throw new Error('JAR original não é um arquivo ZIP válido (pode ser HTML de redirect)');
-  }
-
-  log.info('JAR original baixado', { originalUrl, size: jarBuffer.length });
-  return jarBuffer;
+  throw lastErr || new Error('Falha ao baixar JAR original');
 }
 
 /**
@@ -173,7 +200,23 @@ export async function uploadJarToGitHubRelease({ buffer, productId, productName,
     throw new Error(`Erro ao fazer upload do JAR: ${uploadRes.status}`);
   }
   const asset = await uploadRes.json();
-  return asset.browser_download_url;
+  const downloadUrl = asset.browser_download_url;
+
+  // O GitHub pode demorar alguns segundos para propagar o asset apos o upload.
+  // Espera e tenta baixar a URL para garantir que ela ja esta acessivel.
+  const wait = (ms) => new Promise(r => setTimeout(r, ms));
+  for (let i = 0; i < 5; i++) {
+    try {
+      const test = await fetchOriginalJar(downloadUrl);
+      log.info('URL do asset verificada apos upload', { downloadUrl, attempts: i + 1, size: test.length });
+      return downloadUrl;
+    } catch (err) {
+      log.warn('aguardando propagacao do asset no GitHub', { downloadUrl, attempt: i + 1, error: err.message });
+      if (i < 4) await wait(2000);
+    }
+  }
+
+  return downloadUrl;
 }
 
 /**
