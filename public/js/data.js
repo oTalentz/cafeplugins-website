@@ -329,7 +329,7 @@ const DB = {
   async authenticateUser(email, password) {
     try {
       const u = await this.login(email, password);
-      if (u.role === 'admin') return { error: 'Use a aba Admin para entrar como administrador' };
+      if (u.role === 'admin') return { role: 'admin', admin: u };
       if (u.isAffiliate) return { role: 'affiliate', affiliate: u };
       return { role: 'buyer', buyer: u };
     } catch (e) {

@@ -411,10 +411,6 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             Cliente / Afiliado
           </button>
-          <button class="auth-tab" data-auth-tab="admin">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm10-10V7a4 4 0 0 0-8 0v4h8z"/></svg>
-            Admin
-          </button>
         </div>
 
         <form id="authUserForm" class="auth-form" style="display:none">
@@ -435,21 +431,6 @@
           </div>
         </form>
 
-        <form id="authAdminForm" class="auth-form" style="display:none">
-          <div class="input-group">
-            <label>E-mail do admin (opcional)</label>
-            <input class="input" type="email" name="email" placeholder="admin@pixelforge.com" />
-          </div>
-          <div class="input-group">
-            <label>Senha de admin</label>
-            <input class="input" type="password" name="password" required placeholder="••••••••" autocomplete="current-password" />
-          </div>
-          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center">Entrar como admin</button>
-          <div class="dev-creds" id="devCredsAdmin" style="display:none">
-            <p class="dev-creds-title">Acesso abaixo apenas para testes</p>
-            <p class="dev-creds-row"><span>Admin</span> <code>admin@pixelforge.com</code> (ou vazio) / <code>admin123</code></p>
-          </div>
-        </form>
 
         <div id="forgotPanel" class="auth-forgot" style="display:none">
           <button type="button" class="auth-back" id="forgotBackBtn">

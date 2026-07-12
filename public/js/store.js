@@ -693,7 +693,7 @@ function openPainel() {
   $('#painelModal').classList.add('open');
   showAuthStep(currentAuthTab);
   setTimeout(() => {
-    const sel = currentAuthTab === 'admin' ? '#authAdminForm [name="password"]' : '#authUserForm [name="email"]';
+    const sel = '#authUserForm [name="email"]';
     $(sel)?.focus();
   }, 50);
 }
@@ -714,7 +714,6 @@ function showVerifyEmailPanel(email, devCode) {
 function showAuthStep(step) {
   const tabs = $('#authTabs');
   const userForm = $('#authUserForm');
-  const adminForm = $('#authAdminForm');
   const forgot = $('#forgotPanel');
   const verify = $('#verifyEmailPanel');
   const title = $('#painelTitle');
@@ -723,7 +722,6 @@ function showAuthStep(step) {
   if (step === 'forgot') {
     if (tabs) tabs.style.display = 'none';
     userForm.style.display = 'none';
-    adminForm.style.display = 'none';
     forgot.style.display = 'block';
     title.textContent = 'Recuperar senha';
     resetForgotSteps();
@@ -732,7 +730,6 @@ function showAuthStep(step) {
   if (step === 'verify') {
     if (tabs) tabs.style.display = 'none';
     userForm.style.display = 'none';
-    adminForm.style.display = 'none';
     if (verify) verify.style.display = 'block';
     title.textContent = 'Confirme seu e-mail';
     setTimeout(() => $('#verifyEmailCode')?.focus(), 50);
@@ -744,7 +741,6 @@ function showAuthStep(step) {
     $$('#authTabs .auth-tab').forEach(t => t.classList.toggle('active', t.dataset.authTab === step));
   }
   userForm.style.display = step === 'user' ? 'flex' : 'none';
-  adminForm.style.display = step === 'admin' ? 'flex' : 'none';
   title.textContent = 'Entrar';
 }
 
@@ -798,30 +794,16 @@ function setupPainel() {
         toast(result.error, false);
         return;
       }
-      if (result.role === 'affiliate') {
+      if (result.role === 'admin') {
+        toast(`Bem-vindo, admin!`);
+        closePainelThen(() => { location.href = 'admin.html'; });
+      } else if (result.role === 'affiliate') {
         toast(`Bem-vindo, ${result.affiliate.name}!`);
         closePainelThen(() => { location.href = 'account.html'; });
       } else if (result.role === 'buyer') {
         toast(`Bem-vindo, ${result.buyer.name}!`);
         closePainelThen(() => { location.href = 'account.html'; });
       }
-    } catch (err) {
-      toast(err.message || 'Erro ao entrar', false);
-    } finally {
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Entrar'; }
-    }
-  });
-
-  $('#authAdminForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const f = e.target;
-    const submitBtn = f.querySelector('button[type=submit]');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Entrando...'; }
-    try {
-      const result = await DB.authenticateAdmin(f.email.value, f.password.value);
-      if (result.error) { toast(result.error, false); return; }
-      toast(`Bem-vindo, ${result.user.name}!`);
-      closePainelThen(() => { location.href = 'admin.html'; });
     } catch (err) {
       toast(err.message || 'Erro ao entrar', false);
     } finally {
