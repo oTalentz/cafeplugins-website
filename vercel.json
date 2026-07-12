@@ -35,5 +35,11 @@
     }
   },
   "trailingSlash": false,
-  "cleanUrls": true
+  "cleanUrls": true,
+  "crons": [
+    {
+      "path": "/api/orders/cron/poll-pending",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }

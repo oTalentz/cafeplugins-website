@@ -85,6 +85,7 @@ As variáveis obrigatórias (`TURSO_URL`, `TURSO_TOKEN`, `JWT_SECRET`) precisam 
 | `APP_URL` | URL pública (links de e-mail/download) |
 | `CORS_ORIGIN` | Domínios permitidos (vírgula-separado) |
 | `NODE_ENV` | `production` ativa hardenings |
+| `CRON_SECRET` | Secret para proteger o endpoint cron de verificação de pedidos |
 
 ### Negócio
 

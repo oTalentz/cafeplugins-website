@@ -358,3 +358,27 @@ export function filenameForFreeDownload({ productName, productId }) {
     .replace(/[^a-zA-Z0-9_-]/g, '_');
   return `${safe}.jar`;
 }
+
+/**
+ * Gera o JAR watermarkado e faz upload para uma release dedicada no GitHub.
+ * Usado no markOrderPaid para pré-gerar o build e evitar timeout no download.
+ * Retorna a URL do asset no GitHub (API URL que aceita bearer token).
+ */
+export async function generateAndUploadWatermarkedJar({ originalUrl, licenseKey, orderId, buyerEmail, productId, productName }) {
+  const jarBuffer = await createWatermarkedJar({ originalUrl, licenseKey, orderId, buyerEmail, productId });
+  const safeOrderId = String(orderId).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeProductId = String(productId).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const filename = `${safeOrderId}-${safeProductId}.jar`;
+  // Usa uma tag dedicada para builds de clientes (não conflita com releases do admin)
+  const version = 'customer-builds';
+
+  const downloadUrl = await uploadJarToGitHubRelease({
+    buffer: jarBuffer,
+    productId,
+    productName,
+    version,
+    filename
+  });
+  log.info('JAR watermarkado pré-gerado e enviado ao GitHub', { orderId, productId, downloadUrl, size: jarBuffer.length });
+  return downloadUrl;
+}

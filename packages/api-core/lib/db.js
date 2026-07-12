@@ -200,6 +200,15 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   id TEXT PRIMARY KEY,
   applied_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  scope TEXT NOT NULL,
+  ip TEXT NOT NULL,
+  window_start INTEGER NOT NULL,
+  count INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (scope, ip)
+);
 `;
 
 export async function initSchema() {
@@ -316,7 +325,28 @@ const MIGRATIONS = [
     } catch (e) { log.warn('backfill admin verified skip:', e.message); }
   } },
   // Capa/banner do produto (imagem de destaque nos cards e modal)
-  { id: 'cover_image_products', table: 'products', column: 'cover_image', def: 'TEXT' }
+  { id: 'cover_image_products', table: 'products', column: 'cover_image', def: 'TEXT' },
+  // URL do JAR pré-gerado com watermark (upload no GitHub no momento do pagamento)
+  { id: 'watermarked_url_orders', table: 'orders', column: 'watermarked_url', def: 'TEXT' },
+  // Rate limit distribuído (Turso-backed) para serverless multi-instância
+  { id: 'rate_limits_table', table: 'noop', column: 'noop', def: 'noop', post: async (db) => {
+    const sql = `
+      CREATE TABLE IF NOT EXISTS rate_limits (
+        scope TEXT NOT NULL,
+        ip TEXT NOT NULL,
+        window_start INTEGER NOT NULL,
+        count INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (scope, ip)
+      );
+    `;
+    try {
+      for (const stmt of sql.split(';').map(s => s.trim()).filter(Boolean)) {
+        await db.execute({ sql: stmt, args: [] });
+      }
+      log.info('migration: tabela rate_limits criada');
+    } catch (e) { log.warn('migration rate_limits:', e.message); }
+  } }
 ];
 
 async function runMigrations() {

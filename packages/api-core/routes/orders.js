@@ -17,7 +17,7 @@ import { rateLimit, timingSafeEqual } from 'api-core/lib/security.js';
 import { calculateBreakdown } from 'api-core/lib/fees.js';
 import { createLogger } from 'api-core/lib/logger.js';
 import { PHONE_MIN_DIGITS, PHONE_MAX_DIGITS } from 'api-core/lib/config.js';
-import { createWatermarkedJar, fetchOriginalJar, filenameForDownload, filenameForFreeDownload } from 'api-core/lib/jar-watermark.js';
+import { createWatermarkedJar, fetchOriginalJar, filenameForDownload, filenameForFreeDownload, generateAndUploadWatermarkedJar } from 'api-core/lib/jar-watermark.js';
 import { auditLog } from 'api-core/lib/audit.js';
 
 const router = Router();
@@ -596,6 +596,52 @@ router.get('/:id/download-token', requireAuth, async (req, res) => {
   });
 });
 
+// =====================================================
+//  Cron: verifica pedidos pendentes órfãos (webhook não chegou)
+//  Chamado por Vercel Cron a cada 15 min.
+//  Protegido por CRON_SECRET (header x-cron-secret).
+//  Busca pedidos pendentes criados há mais de 2 min (tempo razoável
+//  para o webhook chegar) e consulta o gateway para confirmar pagamento.
+// =====================================================
+router.get('/cron/poll-pending', async (req, res) => {
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const provided = req.headers['x-cron-secret'] || '';
+    if (!timingSafeEqual(cronSecret, provided)) {
+      return res.status(403).json({ error: 'Não autorizado' });
+    }
+  }
+  try {
+    // Busca pedidos pendentes há mais de 2 minutos (webhook pode ter falhado)
+    const cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const pending = await all(
+      "SELECT * FROM orders WHERE status = 'pendente' AND created_at < ? AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 50",
+      [cutoff]
+    );
+    if (pending.length === 0) {
+      return res.json({ ok: true, checked: 0, confirmed: 0 });
+    }
+    let confirmed = 0;
+    for (const order of pending) {
+      if (!order.payment_id) continue;
+      try {
+        const status = await checkPaymentStatus(order.payment_id, order.id);
+        if (status && status.paid) {
+          await markOrderPaid(order.id);
+          confirmed++;
+          log.info('cron: pedido confirmado via poll', { orderId: order.id, paymentId: order.payment_id });
+        }
+      } catch (e) {
+        log.warn('cron: erro ao verificar pedido', { orderId: order.id, error: e.message });
+      }
+    }
+    res.json({ ok: true, checked: pending.length, confirmed });
+  } catch (e) {
+    log.error('cron poll-pending error', { error: e.message });
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
 // Download do JAR watermarkado (público, validado pelo token)
 router.get('/:id/download', downloadLimiter, async (req, res) => {
   const t = sanitizeDownloadToken(req.query.t || '');
@@ -646,11 +692,33 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
     return res.status(404).json({ error: 'Arquivo do plugin nao configurado' });
   }
 
-  log.info('tentando gerar build watermarkada', { orderId: order.id, downloadUrl, productId: item.id });
-
   // Plugins gratuitos (price=0): servem o JAR original diretamente, sem watermark
   // e sem necessidade de licença. Download mais simples, sem complicações.
   const isFree = Number(item.price) === 0;
+
+  // Registra o download (atômico: só incrementa se abaixo do limite)
+  const logEntry = JSON.stringify({ ts: nowISO(), ip: req.ip, ua: (req.headers['user-agent'] || '').slice(0, 100) });
+  const upd = await run(
+    `UPDATE orders SET downloads = json_insert(coalesce(downloads, '[]'), '$[#]', json(?))
+     WHERE id = ? AND json_array_length(coalesce(downloads, '[]')) < ?`,
+    [logEntry, order.id, maxDownloads]
+  );
+  if ((upd?.rowsAffected || 0) === 0) {
+    log.warn('download rejeitado: limite atingido (atômico)', { orderId: order.id, maxDownloads });
+    return res.status(403).json({ error: 'Limite de downloads atingido para esta compra.', code: 'DOWNLOAD_LIMIT_REACHED' });
+  }
+
+  // FAST PATH: se o JAR watermarkado já foi pré-gerado no pagamento, redireciona
+  // para o GitHub. Evita timeout no serverless (geração on-the-fly pode demorar >10s).
+  if (!isFree && order.watermarked_url) {
+    log.info('download via redirect (JAR pré-gerado)', { orderId: order.id });
+    const filename = filenameForDownload({ productName: item.name, productId: item.id });
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.redirect(302, order.watermarked_url);
+  }
+
+  // SLOW PATH: gera o JAR on-the-fly (fallback se pré-geração falhou ou plugin gratuito)
+  log.info('gerando build watermarkada on-the-fly', { orderId: order.id, downloadUrl, productId: item.id });
   try {
     let jar;
     let filename;
@@ -667,22 +735,6 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
         productId: item.id
       });
       filename = filenameForDownload({ productName: item.name, productId: item.id });
-    }
-
-    // Race condition fix: UPDATE atômico que só adiciona o log de download se o
-    // contador atual ainda estiver abaixo do limite. json_array_length verifica
-    // o tamanho do array no banco, e json_insert anexa o novo registro em $[#]
-    // (final do array). Se duas requisições concorrentes chegarem aqui, apenas
-    // uma terá rowsAffected=1; a outra verá 0 (limite já foi atingido).
-    const logEntry = JSON.stringify({ ts: nowISO(), ip: req.ip, ua: (req.headers['user-agent'] || '').slice(0, 100) });
-    const upd = await run(
-      `UPDATE orders SET downloads = json_insert(coalesce(downloads, '[]'), '$[#]', json(?))
-       WHERE id = ? AND json_array_length(coalesce(downloads, '[]')) < ?`,
-      [logEntry, order.id, maxDownloads]
-    );
-    if ((upd?.rowsAffected || 0) === 0) {
-      log.warn('download rejeitado: limite atingido (atômico)', { orderId: order.id, maxDownloads });
-      return res.status(403).json({ error: 'Limite de downloads atingido para esta compra.', code: 'DOWNLOAD_LIMIT_REACHED' });
     }
 
     res.setHeader('Content-Type', 'application/java-archive');
@@ -991,6 +1043,37 @@ async function markOrderPaid(orderId, opts = {}) {
         `UPDATE users SET conversions = conversions + 1, total_sales = total_sales + 1, total_earned = total_earned + ?, daily_stats = ? WHERE id = ?`,
         [Number(order.commission || 0), JSON.stringify(dailyStats), aff.id]
       );
+    }
+  }
+
+  // Pré-gera JAR watermarkado e faz upload para GitHub (evita timeout no download).
+  // Só para plugins pagos (gratuitos não precisam de watermark).
+  // Falhas aqui não bloqueiam o pagamento — o download ainda funciona via geração on-the-fly.
+  const isFree = Number(order.subtotal || 0) === 0;
+  if (!isFree) {
+    try {
+      const items = JSON.parse(order.items || '[]');
+      const item = items[0];
+      if (item && item.id) {
+        const product = await get('SELECT download_url FROM products WHERE id = ?', [item.id]);
+        const downloadUrl = (product && product.download_url) ? product.download_url : item.downloadUrl;
+        if (downloadUrl) {
+          const watermarkedUrl = await generateAndUploadWatermarkedJar({
+            originalUrl: downloadUrl,
+            licenseKey: order.license_key,
+            orderId: order.id,
+            buyerEmail: order.buyer_email,
+            productId: item.id,
+            productName: item.name
+          });
+          if (watermarkedUrl) {
+            await run('UPDATE orders SET watermarked_url = ? WHERE id = ?', [watermarkedUrl, order.id]);
+            log.info('JAR watermarkado pré-gerado', { orderId: order.id, watermarkedUrl });
+          }
+        }
+      }
+    } catch (e) {
+      log.warn('falha ao pré-gerar JAR watermarkado (download usará fallback on-the-fly)', { orderId, error: e.message });
     }
   }
 

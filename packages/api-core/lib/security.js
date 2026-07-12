@@ -1,40 +1,74 @@
 // =====================================================
 //  Middlewares de segurança:
-//  - rateLimit (in-memory, por IP+rota)
+//  - rateLimit (Turso-backed, funciona em serverless multi-instância)
 //  - securityHeaders (CSP, HSTS, X-Frame, etc)
 //  - timingSafeEqual (constant-time compare para secrets)
 // =====================================================
 
 import { timingSafeEqual as _nativeTimingSafeEqual } from 'node:crypto';
+import { run as dbRun, get as dbGet } from './db.js';
+import { createLogger } from './logger.js';
 
-// Rate limit in-memory: simples e suficiente para um único processo Vercel
-// (cada cold start recomeça, então é apenas defesa local; AbacatePay e
-// Vercel já mitigam DDoS na borda).
+const log = createLogger('security');
+
+// Rate limit Turso-backed: funciona em serverless (multi-instância).
+// Usa a tabela rate_limits (scope, ip, window_start, count).
+// Fallback in-memory se DB não estiver pronto (cold start).
 const _buckets = new Map();
 
 function _key(scope, id) { return `${scope}|${id}`; }
 function _now() { return Date.now(); }
 
 export function rateLimit({ scope, windowMs = 60_000, max = 5, message = 'Muitas requisições. Tente novamente em instantes.' } = {}) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
+    try {
     const id = req.ip || req.headers['x-forwarded-for'] || 'anon';
     const key = _key(scope, id);
     const now = _now();
-    const b = _buckets.get(key) || { count: 0, resetAt: now + windowMs };
-    if (now > b.resetAt) { b.count = 0; b.resetAt = now + windowMs; }
-    b.count += 1;
-    _buckets.set(key, b);
+    const windowStart = Math.floor(now / windowMs) * windowMs;
+    const windowEnd = windowStart + windowMs;
+
+    // Tenta usar Turso (distribuído). Se falhar, usa in-memory fallback.
+    let count = 0;
+    try {
+      // UPSERT: incrementa count se a janela for a mesma, reseta se mudou.
+      await dbRun(
+        `INSERT INTO rate_limits (scope, ip, window_start, count, created_at)
+         VALUES (?, ?, ?, 1, ?)
+         ON CONFLICT(scope, ip) DO UPDATE SET
+           count = CASE WHEN window_start = ? THEN count + 1 ELSE 1 END,
+           window_start = CASE WHEN window_start = ? THEN window_start ELSE ? END`,
+        [scope, id, windowStart, new Date(now).toISOString(),
+         windowStart, windowStart, windowStart]
+      );
+      const row = await dbGet('SELECT count, window_start FROM rate_limits WHERE scope = ? AND ip = ?', [scope, id]);
+      count = row ? Number(row.count) : 1;
+    } catch (e) {
+      // DB não pronto (cold start) — fallback in-memory
+      const b = _buckets.get(key) || { count: 0, resetAt: now + windowMs };
+      if (now > b.resetAt) { b.count = 0; b.resetAt = now + windowMs; }
+      b.count += 1;
+      _buckets.set(key, b);
+      count = b.count;
+    }
+
+    const remaining = Math.max(0, max - count);
     res.setHeader('X-RateLimit-Limit', String(max));
-    res.setHeader('X-RateLimit-Remaining', String(Math.max(0, max - b.count)));
-    res.setHeader('X-RateLimit-Reset', String(Math.ceil(b.resetAt / 1000)));
-    if (b.count > max) {
-      return res.status(429).json({ error: message, retryAfter: Math.ceil((b.resetAt - now) / 1000) });
+    res.setHeader('X-RateLimit-Remaining', String(remaining));
+    res.setHeader('X-RateLimit-Reset', String(Math.ceil(windowEnd / 1000)));
+    if (count > max) {
+      const retryAfter = Math.ceil((windowEnd - now) / 1000);
+      return res.status(429).json({ error: message, retryAfter });
     }
     next();
+    } catch (err) {
+      log.warn('rateLimit error, allowing request', { error: err.message });
+      next();
+    }
   };
 }
 
-// Limpa buckets expirados a cada 5 min (evita leak de memória em long-running)
+// Limpa buckets in-memory expirados (fallback apenas)
 setInterval(() => {
   const now = _now();
   for (const [k, b] of _buckets) {
