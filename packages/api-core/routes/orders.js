@@ -590,10 +590,13 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
 
   const order = await get('SELECT * FROM orders WHERE id = ?', [req.params.id]);
   if (!order || !timingSafeEqual(order.download_token || '', t)) {
+    log.warn('download rejeitado: token inválido', { orderId: req.params.id });
     return res.status(403).json({ error: 'Token inválido' });
   }
+  log.info('download iniciado', { orderId: order.id, buyerEmail: order.buyer_email, status: order.status, productId: (JSON.parse(order.items || '[]')[0] || {}).id });
   if (order.status !== 'pago') return res.status(402).json({ error: 'Pedido não pago' });
   if (order.download_expires_at && order.download_expires_at < nowISO()) {
+    log.warn('download rejeitado: token expirado', { orderId: order.id, download_expires_at: order.download_expires_at });
     return res.status(410).json({ error: 'Token de download expirado. Solicite um novo na sua conta.' });
   }
 
@@ -601,6 +604,7 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
   if (order.user_id) {
     const buyer = await get('SELECT email_verified FROM users WHERE id = ?', [order.user_id]);
     if (buyer && !buyer.email_verified) {
+      log.warn('download rejeitado: e-mail não verificado', { orderId: order.id, userId: order.user_id });
       return res.status(403).json({ error: 'Confirme seu e-mail para liberar o download.' });
     }
   }
@@ -608,6 +612,7 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
   const items = JSON.parse(order.items || '[]');
   const item = items[0];
   if (!item || !item.downloadUrl) {
+    log.warn('download rejeitado: downloadUrl não configurado', { orderId: order.id, item });
     return res.status(404).json({ error: 'Arquivo do plugin não configurado' });
   }
 
@@ -616,9 +621,11 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
   let downloads = [];
   try { downloads = JSON.parse(order.downloads || '[]'); } catch {}
   if (downloads.length >= maxDownloads) {
+    log.warn('download rejeitado: limite atingido', { orderId: order.id, downloadCount: downloads.length, maxDownloads });
     return res.status(403).json({ error: 'Limite de downloads atingido para esta compra.', code: 'DOWNLOAD_LIMIT_REACHED' });
   }
 
+  log.info('tentando gerar build watermarkada', { orderId: order.id, downloadUrl: item.downloadUrl, productId: item.id });
   try {
     const jar = await createWatermarkedJar({
       originalUrl: item.downloadUrl,
@@ -637,7 +644,7 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
     res.setHeader('Content-Length', jar.length);
     res.end(jar);
   } catch (e) {
-    log.error('erro ao gerar JAR watermarkado, tentando fallback original', { orderId: order.id, error: e.message });
+    log.error('erro ao gerar JAR watermarkado, tentando fallback original', { orderId: order.id, error: e.message, stack: e.stack });
     try {
       const fallback = await fetchOriginalJar(item.downloadUrl);
 
@@ -650,7 +657,7 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
       res.setHeader('Content-Length', fallback.length);
       res.end(fallback);
     } catch (fallbackErr) {
-      log.error('erro ao baixar JAR original no fallback', { orderId: order.id, error: fallbackErr.message });
+      log.error('erro ao baixar JAR original no fallback', { orderId: order.id, error: fallbackErr.message, stack: fallbackErr.stack });
       return res.status(500).json({ error: 'Erro ao gerar build do plugin' });
     }
   }

@@ -39,8 +39,10 @@ export async function fetchOriginalJar(originalUrl) {
     headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
     headers.Accept = 'application/octet-stream';
   }
+  log.info('baixando JAR original', { originalUrl, hasToken: !!process.env.GITHUB_TOKEN });
   let res = await fetch(originalUrl, { redirect: 'manual', headers });
   if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+    log.info('redirect detectado no JAR original', { status: res.status, location: res.headers.get('location') });
     res = await fetch(res.headers.get('location'), { redirect: 'follow' });
   }
   if (!res.ok) {
@@ -57,6 +59,7 @@ export async function fetchOriginalJar(originalUrl) {
     throw new Error('JAR original não é um arquivo ZIP válido (pode ser HTML de redirect)');
   }
 
+  log.info('JAR original baixado', { originalUrl, size: jarBuffer.length });
   return jarBuffer;
 }
 
