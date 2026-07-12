@@ -666,7 +666,7 @@ router.get('/:id/download', downloadLimiter, async (req, res) => {
       res.end(fallback);
     } catch (fallbackErr) {
       log.error('erro ao baixar JAR original no fallback', { orderId: order.id, error: fallbackErr.message, stack: fallbackErr.stack });
-      return res.status(500).json({ error: 'Erro ao gerar build do plugin' });
+      return res.status(500).json({ error: fallbackErr.message || 'Erro ao gerar build do plugin' });
     }
   }
 });
