@@ -476,6 +476,26 @@ function wirePasswordForm(role) {
 
 let _affPanelLoaded = false;
 let _affPanelLoading = null;
+// Copia o link de divulgação do afiliado para a área de transferência
+function copyAffiliateLink() {
+  const aff = DB.getCurrentAffiliate();
+  const code = aff && (aff.code || aff.affiliateCode);
+  if (!code) return;
+  const link = window.location.origin + '/?ref=' + code;
+  navigator.clipboard.writeText(link).then(() => {
+    toast('Link copiado: ' + link);
+  }).catch(() => {
+    // Fallback para navegadores sem permissão de clipboard
+    const input = document.createElement('input');
+    input.value = link;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    document.body.removeChild(input);
+    toast('Link copiado');
+  });
+}
+
 function renderAffiliatePanel() {
   const buyer = DB.getCurrentBuyer();
   const aff = DB.getCurrentAffiliate();
@@ -727,7 +747,7 @@ function renderAffiliatePanel() {
     catch (e) { document.execCommand('copy'); toast('Copiado'); }
   };
   $('#copyCodeBtn')?.addEventListener('click', () => copy($('#shareCode')));
-  $('#copyLinkBtn')?.addEventListener('click', () => copy($('#shareLink')));
+  $('#copyLinkBtn')?.addEventListener('click', copyAffiliateLink);
   $('#requestPayoutBtn')?.addEventListener('click', () => requestPayout(pending));
   $('#savePixBtn')?.addEventListener('click', () => savePixKey());
 }

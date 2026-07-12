@@ -950,6 +950,40 @@ $('#newSaleBtn').onclick = () => {
   $('#saleModal').classList.add('open');
 };
 
+// Exportação de relatório de vendas em CSV
+function exportOrdersCSV() {
+  const orders = (DB.getOrders() || []).map(o => ({
+    ...o,
+    buyer: o.buyer && typeof o.buyer === 'object' ? o.buyer : { name: o.buyerName || '', email: o.buyerEmail || '' },
+    total: Number(o.total || 0),
+    status: o.status || 'pendente',
+    payment: o.paymentMethod || o.payment_method || o.payment || '',
+    affiliateCode: o.affiliateCode || o.affiliate_code || '',
+    createdAt: o.createdAt || o.created_at || ''
+  }));
+  const headers = ['ID', 'Cliente', 'Email', 'Total', 'Status', 'Pagamento', 'Afiliado', 'Data'];
+  const rows = orders.map(o => [
+    o.id,
+    '"' + (o.buyer.name || '').replace(/"/g, '""') + '"',
+    '"' + (o.buyer.email || '').replace(/"/g, '""') + '"',
+    o.total,
+    o.status,
+    o.payment,
+    o.affiliateCode || '',
+    o.createdAt
+  ].join(','));
+  const csv = headers.join(',') + '\n' + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'vendas-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+const _exportCsvBtn = $('#exportCsvBtn');
+if (_exportCsvBtn) _exportCsvBtn.onclick = exportOrdersCSV;
+
 $('#saveSaleBtn').onclick = async () => {
   const f = $('#saleForm');
   const productId = f.productId.value;
@@ -1448,6 +1482,7 @@ function renderChartSvg(dailyStats) {
 }
 
 let payoutFilter = 'pendente';
+let _selectedPayouts = new Set();
 async function renderPayouts() {
   // Sempre busca do servidor para garantir dados atualizados
   try { await DB.getAllPayouts(payoutFilter === 'all' ? 'all' : payoutFilter); } catch (e) { console.warn('getAllPayouts failed:', e.message); }
@@ -1492,15 +1527,23 @@ async function renderPayouts() {
   `;
 
   const list = payoutFilter === 'all' ? all : all.filter(p => p.status === payoutFilter);
+  // Mantém apenas seleções que ainda são pendentes e estão na lista atual
+  _selectedPayouts = new Set([..._selectedPayouts].filter(id => {
+    const p = all.find(x => x.id === id);
+    return p && p.status === 'pendente' && list.some(x => x.id === id);
+  }));
   if (list.length === 0) {
-    $('#payoutsTable').innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--ink-3); padding:40px">Nenhuma solicitação ${payoutFilter === 'pendente' ? 'pendente' : payoutFilter === 'pago' ? 'paga' : payoutFilter === 'rejeitado' ? 'rejeitada' : ''}.</td></tr>`;
+    $('#payoutsTable').innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--ink-3); padding:40px">Nenhuma solicitação ${payoutFilter === 'pendente' ? 'pendente' : payoutFilter === 'pago' ? 'paga' : payoutFilter === 'rejeitado' ? 'rejeitada' : ''}.</td></tr>`;
+    updateBulkApproveBtn();
     return;
   }
   $('#payoutsTable').innerHTML = list.map(p => {
     const aff = DB.getAffiliates().find(a => a.id === p.affiliateId);
     const pixKey = p.pixKey || p.pix_key || aff?.pixKey || aff?.pix_key || '—';
     const pixHolder = p.pixHolder || p.pix_holder || aff?.pixHolder || aff?.pix_holder || '';
-    return `<tr>
+    const checked = _selectedPayouts.has(p.id);
+    return `<tr class="${checked ? 'selected' : ''}">
+      <td style="width:32px">${p.status === 'pendente' ? `<input type="checkbox" class="row-checkbox" data-payout="${p.id}" ${checked ? 'checked' : ''} />` : ''}</td>
       <td><small style="color:var(--ink-3)">${fmtDate(p.requestedAt || p.requested_at)}</small>${(p.processedAt || p.processed_at) ? `<br><small style="color:var(--ink-3)">processado: ${fmtDay(p.processedAt || p.processed_at)}</small>` : ''}</td>
       <td><strong>${escHtml(aff?.name) || '—'}</strong><br><small style="color:var(--ink-3)"><code>${escHtml(p.affiliateCode || p.affiliate_code)}</code></small></td>
       <td><strong>${brl(p.amount)}</strong></td>
@@ -1524,6 +1567,19 @@ async function renderPayouts() {
       </td>
     </tr>`;
   }).join('');
+
+  // Wire checkboxes de payout
+  $$('#payoutsTable .row-checkbox[data-payout]').forEach(cb => {
+    cb.onclick = (e) => {
+      e.stopPropagation();
+      const id = cb.dataset.payout;
+      if (cb.checked) _selectedPayouts.add(id);
+      else _selectedPayouts.delete(id);
+      cb.closest('tr').classList.toggle('selected', cb.checked);
+      updateBulkApproveBtn();
+    };
+  });
+  updateBulkApproveBtn();
 
   $$('.payout-filter').forEach(b => b.onclick = () => {
     payoutFilter = b.dataset.status;
@@ -1571,12 +1627,42 @@ async function renderPayouts() {
     if (!confirm('Excluir este payout?')) return;
     try {
       await DB.deletePayout(b.dataset.delPayout);
+      _selectedPayouts.delete(b.dataset.delPayout);
       renderAll();
       toast('Payout excluído');
     } catch (err) {
       toast(err.message || 'Erro ao excluir', false);
     }
   });
+
+  // Bulk approve de payouts selecionados
+  const bulkBtn = $('#bulkApprovePayoutsBtn');
+  if (bulkBtn) {
+    bulkBtn.onclick = async () => {
+      const selected = [..._selectedPayouts];
+      if (selected.length === 0) return;
+      if (!confirm(`Aprovar ${selected.length} payouts?`)) return;
+      let ok = 0;
+      for (const id of selected) {
+        try {
+          await DB.approvePayout(id, 'Pix');
+          ok++;
+        } catch (err) {
+          toast('Erro ao aprovar payout ' + id + ': ' + (err.message || ''), false);
+        }
+      }
+      _selectedPayouts.clear();
+      if (ok > 0) toast(ok + ' payout' + (ok > 1 ? 's' : '') + ' aprovado' + (ok > 1 ? 's' : ''));
+      renderAll();
+    };
+  }
+}
+
+// Mostra/esconde o botão "Aprovar selecionados" conforme a seleção
+function updateBulkApproveBtn() {
+  const btn = $('#bulkApprovePayoutsBtn');
+  if (!btn) return;
+  btn.style.display = _selectedPayouts.size > 0 ? '' : 'none';
 }
 
 
