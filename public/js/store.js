@@ -878,7 +878,7 @@ function setupPainel() {
     const p1 = f.password.value;
     const p2 = f.password2.value;
     if (p1 !== p2) { toast('As senhas não conferem', false); return; }
-    if (p1.length < 4) { toast('Senha muito curta (mínimo 4 caracteres)', false); return; }
+    if (p1.length < 12) { toast('Senha muito curta (mínimo 12 caracteres)', false); return; }
     const code = $('#forgotCode').value.trim();
     const submitBtn = f.querySelector('button[type=submit]');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Salvando...'; }

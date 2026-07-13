@@ -196,8 +196,8 @@ function showSetPasswordForm() {
     <h2 style="font-size:1.25rem; margin-bottom:6px">Crie sua senha</h2>
     <p class="text-muted" style="font-size:0.875rem; margin-bottom:14px">Como esta é sua primeira vez logando, defina uma senha para sua conta.</p>
     <form id="setPwdForm">
-      <input class="input" type="password" id="setPwdInput" required placeholder="Mínimo 10 caracteres" minlength="10" autocomplete="new-password" />
-      <input class="input" type="password" id="setPwdInput2" required placeholder="Repita a senha" minlength="10" autocomplete="new-password" style="margin-top:8px" />
+      <input class="input" type="password" id="setPwdInput" required placeholder="Mínimo 12 caracteres" minlength="12" autocomplete="new-password" />
+      <input class="input" type="password" id="setPwdInput2" required placeholder="Repita a senha" minlength="12" autocomplete="new-password" style="margin-top:8px" />
       <button class="btn btn-primary" type="submit" style="margin-top:12px; width:100%">Criar senha e entrar</button>
     </form>
   `;
@@ -205,7 +205,7 @@ function showSetPasswordForm() {
     e.preventDefault();
     const p1 = $('#setPwdInput').value;
     const p2 = $('#setPwdInput2').value;
-    if (p1.length < 10) { toast('Senha deve ter no mínimo 10 caracteres', false); return; }
+    if (p1.length < 12) { toast('Senha deve ter no mínimo 12 caracteres', false); return; }
     if (p1 !== p2) { toast('As senhas não coincidem', false); return; }
     const submitBtn = e.target.querySelector('button');
     const endLoading = Loading.buttonStart(submitBtn, 'Criando…');
@@ -445,8 +445,8 @@ function renderPasswordForm(role) {
     <div class="lbl" style="margin-bottom:8px">${role === 'affiliate' ? 'Senha' : 'Senha'}</div>
     <form id="changePwdForm" style="display:grid; gap:8px; max-width:340px">
       <input class="input" type="password" name="current" placeholder="Senha atual" />
-      <input class="input" type="password" name="newpwd" placeholder="Nova senha (mín. 4)" minlength="4" required />
-      <input class="input" type="password" name="confirm" placeholder="Confirmar nova senha" minlength="4" required />
+      <input class="input" type="password" name="newpwd" placeholder="Nova senha (mín. 12)" minlength="12" required />
+      <input class="input" type="password" name="confirm" placeholder="Confirmar nova senha" minlength="12" required />
       <button type="submit" class="btn btn-secondary" style="justify-content:center">Atualizar senha</button>
     </form>
   </div>`;

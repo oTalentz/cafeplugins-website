@@ -101,14 +101,17 @@ export function securityHeaders(req, res, next) {
   if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
-  // CSP: sem inline scripts/styles, só self + CDNs explícitos
+  // CSP: sem inline scripts, styles inline permitidos (necessário para o frontend atual)
   res.setHeader(
     'Content-Security-Policy',
     [
       "default-src 'self'",
       "img-src 'self' data: https:",
-      // HIGH-15 FIX: removido 'unsafe-inline'. Estilos inline devem ser movidos para CSS files.
-      "style-src 'self' https://fonts.googleapis.com",
+      // 'unsafe-inline' em style-src é necessário porque o frontend usa estilos inline
+      // extensivamente (HTML attributes + JS innerHTML). Migrar tudo para CSS exigiria
+      // refatorar 3 páginas HTML + 3 arquivos JS. Style unsafe-inline é bem menos perigoso
+      // que script unsafe-inline (não permite execução de código).
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "script-src 'self'",
       // LOW-19: permite YouTube embeds para vídeos de produtos
